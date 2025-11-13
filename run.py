@@ -1,10 +1,11 @@
 #!/usr/bin/bash
 
-# from bids import BIDSLayout
 import bids
+import json
 import os
 import pandas as pd
 from pprint import pprint
+from naccsc_configs import *
 
 bids.config.set_option('extension_initial_dot', True)
 
@@ -34,10 +35,10 @@ class bidsimage():
     # filters.update({"sub":self.sub,ses:self.session})
     # bids_matches = layout.build_path(filters)
 
-    def get_deriv_file(self, deriv_pipeline_name, **filters):
-        ## set derivatives to True for now with derivative pipeline name
-        layout = bids.BIDSLayout(self.bids_dir_hard_filepath,derivatives=True)
-        bids_matches = layout.get(subject=self.sub, session = self.session, extension='.nii.gz', return_type="filename", **filters, scope=deriv_pipeline_name)
+    def get_deriv_file(self, deriv_dir_name, **filters):
+        layout = bids.BIDSLayout(self.bids_dir_hard_filepath, derivatives=True)
+        self.get_data_description(deriv_dir_name) ## read dataset_description.json for pipeline name to pass to layout.get scope arg
+        bids_matches = layout.get(subject=self.sub, session = self.session, extension='.nii.gz', return_type="filename", **filters, scope=self.pipeline_desc_name)
         if len(bids_matches) == 1:
             self.deriv_nifti=bids_matches[0]
         elif len(bids_matches) > 1:
@@ -47,30 +48,28 @@ class bidsimage():
             self.deriv_nifti=""
 
 
-# processing_steps=["neck_trim", "cortical_thick", "brain_ex", "whole_brain_seg", "wbseg_to_ants", 
-#             "wbsegqc", "inf_cereb_mask", "pmtau", 
-#             "t1icv", "superres", "t1ashs", "t1ext_ashs", "t1mtthk", "t2ashs","prc_cleanup",
-#             "flair_skull_strip", "wmh_seg",
-#             "t1_pet_reg", "t1_pet_suvr", "pet_reg_qc",
-#             "ashst1_stats", "ashst2_stats", "wmh_stats", "structure_stats", "pet_stats",
-#             "adhoc_run_pet", "adhoc_mri"]
-processing_steps=["T1w_preproc","crossANTs","t1icv"] 
+    def get_data_description(self, deriv_dir_name = ""):
+        if deriv_dir_name:
+            filepath_to_join = f"{self.bids_dir_hard_filepath}/derivatives/{deriv_dir_name}"
+        else:
+            filepath_to_join = self.bids_dir_hard_filepath
+
+        try: 
+            with open(os.path.join(filepath_to_join, "dataset_description.json"), 'r') as file:
+                data_descript= json.load(file)
+            self.pipeline_desc_name = data_descript['PipelineDescription']['Name']
+        except FileNotFoundError:
+            print("a dataset description.json file must exist for the derivative pipeline output.")
+            ## will error out if no 'outputs exist yet, which is fine, because then the output files are definitely missing and the deriv pipeline needs to be run.
 
 
-### config stuff
-bids_dir_filepath = "/project/wolk_4/naccsc_bids/bids"
 
-t1w_preproc_bids_filter = {"datatype":"anat", "suffix":"T1w"} ## T1preproc files ending in T1w are the desc files, no other files in t1_preproc ouput match that 
-t1w_icv_bids_filter = {"datatype":"anat", "suffix":"T1w", "description":"ashsicv"}
-
-
-if __name__ == "__main__":
+def run_pipeline():
     df=pd.read_csv("/project/wolk_4/naccsc_bids/lists/EG_20250625_NACCSC.csv",header=None,names=['ID','SESSIONNAME'])
     for index,row in df.iterrows():
         sub = row['ID']
-        session = row['SESSIONNAME']
-
-        print(sub, session)
+        session = row['SESSIONNAME']        
+        print(f"Running processing for {sub}, {session}...")
 
         ## For now, let's pretend we'll process all T1w files present -- filtering is a question to discuss with Sandy?
 
@@ -85,18 +84,21 @@ if __name__ == "__main__":
             filters={"datatype":"anat", "suffix":"T1w" , "acquisition":"MPRAGE1mm"}
             bids_image_object.get_original_nifti(**filters)
 
-        print(bids_image_object.original_nifti)
+        print(f"Original T1 nifti: {bids_image_object.original_nifti}")
 
-
+        ### For processing step:
         steptodo = "t1_preproc"
         if steptodo == "t1_preproc":
             ## check for output first:
-            deriv_pipeline_name = "NACC-SC_BIDS T1w Preprocessed"
-            bids_image_object.get_deriv_file(deriv_pipeline_name, **t1w_preproc_bids_filter)
+            bids_image_object.get_deriv_file(t1w_preproc_dirname, **t1w_preproc_bids_filter)
             if len(bids_image_object.deriv_nifti) > 0:
-                print(bids_image_object.deriv_nifti)
+                print(f"Derivative nifti: {bids_image_object.deriv_nifti}")
             else:
                 print(f'no output, find input file to run step {steptodo}')
 
 
 
+if __name__ == "__main__":
+    print("Running run.py")
+    run_pipeline()
+    
