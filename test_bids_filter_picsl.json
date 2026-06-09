@@ -1,0 +1,12 @@
+{
+    "t1w": {
+        "datatype":"anat",
+        "suffix":"T1w" ,
+        "acquisition":"800um"
+    },
+    "t2w":{
+        "datatype":"anat",
+        "suffix":"T2w",
+        "acquisition":"400um"
+    }
+}
