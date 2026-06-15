@@ -1,55 +1,40 @@
 #!/usr/bin/env python3
 
-#### Stuff to change/fill out for each dataset
+#### filepaths, filters to fill out for each dataset
+
+## Top level bids directory
 bids_dir_filepath = "/project/wolk_4/naccsc_bids/bids"
 ## python environment:
 ## conda activate /project/wolk_4/emcgrew/picslbids
 
-## optional bids filters: anything to filter on other than subject, session, datatype, suffix
-custom_t1w_filters = [
-    {"acquisition":"800um"},
-    {"acquisition":"MPRAGE1mm"}
-]
+### filters to use for all steps performed on each type of image
+basic_bids_filters = {
+    "t1w": {
+        "datatype":"anat",
+        "suffix":"T1w",
+        "acquisition":"800um$|MPRAGE1mm"
+    },
+    "t2w":{
+        "datatype":"anat",
+        "suffix":"T2w",
+        "acquisition":"400um"
+    },
+    "flair":{
+        "datatype":"anat",
+        "suffix":"FLAIR",
+        "acquisition":"SagFLAIR"
+    }  
+}
 
-custom_t2w_filters = [
-    {"acquisition":"400um"}
-]
 
-custom_flair_filters = [
-    {"acquisition":"accSag"}
-]
+## for each processing step, bids filter, dirname, processing scripts in a dict 
 
-## Add to subject and session filters in run.py to do most basic filter of all files with that suffix
-basic_t1w_filters = {"datatype":"anat", "suffix":"T1w"} 
-basic_t2w_filters = {"datatype":"anat", "suffix":"T2w"} 
-basic_flair_filters = {"datatype":"anat", "suffix":"FLAIR"} 
+## any changes to the inputs/outputs to each processing step can be made in the filters keyword
+## any bids entity's values that change between input and output of a step should be noted in the output_filter keyword dictionary
+## e.g. the value of "desc" for the superres step is "preproc" for input, and "superres" for output
+## Users can edit the filters to select different files to run through each step
+## (e.g. If you wanted to run superres step on original un-trimmed T1w scan, remove "desc: preproc" from superres['input_filters'])
 
-## New steps:
-# t1w_preproc 
-    # cross ANTs   
-        # longANTs
-            # parcellation 
-                # inf_cereb_mask
-                # structure stats from ANTs 
-                # pmtau (?)
-    # t1icv
-    # superres
-        # t1ext_ashs
-            # crashs
-            # T1 ASHS & CRASHS stats
-    # t2ashs
-        # prc_cleanup
-            # t2 ashs stats
-    # t1_pet_reg
-        # t1_pet_suvr
-            # pet_reg_qc
-                # pet-mri stats
-# flair_skull_strip 
-    # wmh_seg
-        # wmh stats
-
-## for each processing step, define bids filter, dirname, processing script? in a dict 
-## use 'filters' keyword to store additional filter objects other than sub, ses, acq, suffix, datatype that are set in basic and custom filters
 processing_steps = {
     "T1w_preproc":
     {
@@ -73,7 +58,16 @@ processing_steps = {
     },
      "superres": 
     {
-        "input_step":"T1w_preproc", "input_filters":{"desc": "preproc"}, "processing_script": "", "output_dir_name": "superres", "output_filters":{"desc": "superres"}
+        "input_step":"T1w_preproc", 
+        "input_dir_filepath":f"{bids_dir_filepath}/derivatives/T1wPreprocessing_061",
+        "input_filters":{
+            **basic_bids_filters['t1w'], 
+            **{"desc": "preproc"}
+            }, 
+        "processing_script": "", 
+        "output_dir_name": "superres", 
+        "output_filters":{"desc": "superres"},
+        "suffix": "t1w"
     },
     "t1ext_ashs": 
     {
