@@ -38,7 +38,18 @@ basic_bids_filters = {
 processing_steps = {
     "T1w_preproc":
     {
-        "input_step":None, "output_dir_name":"T1wPreprocessing_061"
+        "input_step": None, 
+        "input_dir_filepath":"",
+        "input_filters":{
+            **basic_bids_filters['t1w']
+        },
+        "processing_script": "", 
+        "output_dir_name": "T1wPreprocessing_061", 
+        "output_filters": 
+            {
+                "desc": "preproc"
+            },
+        "suffix": "t1w"
     },
     "xANTs": 
     {
@@ -59,23 +70,26 @@ processing_steps = {
      "superres": 
     {
         "input_step":"T1w_preproc", 
-        "input_dir_filepath":f"{bids_dir_filepath}/derivatives/T1wPreprocessing_061",
-        "input_filters":{
-            **basic_bids_filters['t1w'], 
-            **{"desc": "preproc"}
-            }, 
-        "processing_script": "", 
+        "input_dir_filepath":"derivatives/T1wPreprocessing_061",
+        "input_filters":{**basic_bids_filters['t1w'], **{"desc": "preproc"}}, 
+        "processing_script": "superres_just_bash_parts.sh", 
         "output_dir_name": "superres", 
-        "output_filters":{"desc": "superres"},
+        "output_filters": {"desc": "superres"},
         "suffix": "t1w"
     },
     "t1ext_ashs": 
     {
-        "input_step":"superres", "input_filters":{"desc": "preproc"}, "processing_script": "", "output_dir_name":"ASHST1", "output_filters":{"atlas": "ASHST1ant", "desc": "lfsegheur"}
+        "input_step":"superres", 
+        "input_dir_filepath":"derivatives/superres",
+        "input_filters":{**basic_bids_filters['t1w'], **{"desc": "superres"}}, 
+        "processing_script": "", 
+        "output_dir_name":"ASHST1", 
+        "output_filters":{"atlas": "ASHST1ant", "desc": "lfsegheur"},
+        "suffix": "t1w"
     },
     "crashs": 
     {
-        "input_step":"t1ext_ashs", "output_dir_name":"ASHST1"
+        "input_step":"t1ext_ashs", "output_dir_name":"CRASHS"
     }
 }
 
