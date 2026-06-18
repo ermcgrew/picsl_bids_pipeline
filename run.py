@@ -24,9 +24,12 @@ class bids_image():
         self.subject = [x.split("-")[1] for x in self.file_hard_path.split("/") if "sub" in x][0]
         self.session = [x.split("-")[1] for x in self.file_hard_path.split("/") if "ses" in x][0]
         self.image_dir = os.path.dirname(self.file_hard_path)
+        self.sub_ses_datatype_dirs = f"sub-{self.image_dir.split("/sub-")[-1]}"
         self.containing_bids_dir = self.file_hard_path.split("/sub-")[0] ## gets just the bids dir if raw, with derivative/name if derivative
         self.deriv_dir_name = self.containing_bids_dir.split("/")[-1]
         self.log_file = os.path.join(self.containing_bids_dir,"code","logs",self.deriv_dir_name, f"{self.deriv_dir_name}_{self.subject}_{self.session}_{current_date_time}_%J.txt")
+        self.json_file = self.file_hard_path.replace("nii.gz","json")
+        self.bids_uri = f"bids::sub-{self.file_hard_path.split("/sub-",1)[-1]}" #format as: bids:ds000001:sub-02/anat/sub-02_T1w.nii.gz
 
     ## not part of init -- should only make dirs for a instance if actually running the code that will populate them
     def make_session_dirs(self):
@@ -69,9 +72,11 @@ def get_images(data_dir_filepath, filters, validate_bids=False):
 
 
 ## use pybids library to get filepaths for bids files that don't yet exist and create bids_image objects
+## build_path only create file name, not directory structure
 def build_bids_filepath(outputdir, this_step_filters_output):
-    pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz",
-    layout = bids.BIDSLayout(outputdir, validate=False)
+    # print('building bids filepath')
+    pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
+    layout = bids.BIDSLayout(outputdir, validate = False)
     output_file = bids_image(layout.build_path(this_step_filters_output, pattern, validate=False))
     return output_file
 
@@ -130,7 +135,7 @@ def submit_process_jobs(sub,ses,steptodo):
         this_step_filters_output = deepcopy(this_step_filters_input)
         for key,value in processing_steps[steptodo]['output_filters'].items(): 
             if key in this_step_filters_output:
-                print(f'updating {key} to {value} find output file')
+                print(f'updating {key} to {value} for output file')
                 this_step_filters_output[key] = value
         
         ### Quick check for output file
@@ -145,12 +150,11 @@ def submit_process_jobs(sub,ses,steptodo):
                     return ## return for now, won't work in implementation b/c of run possibilities 
         
         ## get filepath for output file 
-        output_file = build_bids_filepath(outputdir, this_step_filters_output)
-        # print(output_file.file_hard_path)
+        output_file = build_bids_filepath(os.path.join(outputdir,i.sub_ses_datatype_dirs), this_step_filters_output)
         output_file.make_session_dirs() 
 
         ## set up bsub options 
-        submit_options = f"-o {self.logfile}"
+        submit_options = f"-o {output_file.log_file}"
         ### TODO: -J job names for tracking connected jobs
         ### TODO: bsub options function to add -w code tracking? 
             # submit_options = set_submit_options(this job name, log dir, output_job_name)  
@@ -161,8 +165,9 @@ def submit_process_jobs(sub,ses,steptodo):
             ##e.g. processing_steps[steptodo]['run_script'] = bids_superres.sh, run scripts in the same folder as this script, os.path.join(this_script_dir,variable)
             ## hard-code if/else
             # python modules imported -- no, can't call a function by having the value from a variable be the function name (I think)
-        ## TODO: handling lists of inputs/outputs 
+        ## TODO: handling steps with multiple inputs
         if steptodo == "superres":
+            # print(output_file.file_hard_path)
             wrap_submit_superres(i, output_file, submit_options)
             # process_script_path = os.path.join(os.path.dirname(__file__),processing_steps[steptodo]['processing_script'])
             # print(f"bsub {submit_options} bash {process_script_path} {i.file_hard_path} {output_file.file_hard_path}")
@@ -239,5 +244,9 @@ if __name__ == "__main__":
 
     # test = bids_image("/project/wolk_4/naccsc_bids/bids/sub-132132/ses-132132x20250407x3TxABCD2/anat/sub-132132_ses-132132x20250407x3TxABCD2_acq-800um_T1w.nii.gz")
     # test = bids_image("/project/wolk_4/naccsc_bids/bids/derivatives/superres/sub-131378/ses-131378x20250410x3TxABCD2/anat/sub-131378_ses-131378x20250410x3TxABCD2_acq-800um_desc-superres_T1w.nii.gz")
+    # print(test.sub_ses_datatype_dirs)
+    # print(test.file_hard_path)
+    # print(test.json_file)
+
     # print(test.containing_bids_dir)
     # print(test.log_file)
