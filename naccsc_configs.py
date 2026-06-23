@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
+import os
+
+current_date = datetime.now().strftime("%Y%m%d")
+current_date_time = datetime.now().strftime("%Y%m%dT%H%M%S")
+
 #### filepaths, filters to fill out for each dataset
 
 ## Top level bids directory
@@ -79,10 +85,23 @@ processing_steps = {
     },
     "t1ext_ashs": 
     {
-        "input_step":"superres", 
-        "input_dir_filepath":"derivatives/superres",
-        "input_filters":{**basic_bids_filters['t1w'], **{"desc": "superres"}}, 
-        "processing_script": "", 
+        # "input_step":"superres", 
+        # "input_dir_filepath":"derivatives/superres",
+        # "input_filters":[{**basic_bids_filters['t1w'], **{"desc": "superres"}},{**basic_bids_filters['t1w'], **{"desc": "preproc"}}], 
+        "inputs":
+        [
+            { 
+                "input_step":"superres",
+                "input_dir_filepath":"derivatives/superres",
+                "input_filters":{**basic_bids_filters['t1w'], **{"desc": "superres"}}
+            },
+            {
+                "input_step":"T1w_preproc", 
+                "input_dir_filepath":"derivatives/T1wPreprocessing_061",
+                "input_filters":{**basic_bids_filters['t1w'], **{"desc": "preproc"}}, 
+            }
+        ],
+        "processing_script": "",  ## not useful since i'm not passing processing_step to the wrap_submit scripts
         "output_dir_name":"ASHST1", 
         "output_filters":{"atlas": "ASHST1ant", "desc": "lfsegheur"},
         "suffix": "t1w"
@@ -92,4 +111,36 @@ processing_steps = {
         "input_step":"t1ext_ashs", "output_dir_name":"CRASHS"
     }
 }
+
+
+## this is files, actually, not steps
+proc_steps = {
+    "t1w_preproc":
+    {
+        "input_files": [
+            None
+        ],
+        "directory":"derivatives/T1wPreprocessing_061",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "preproc"}}
+    },
+    "superres":
+    {
+        "input_files": [
+            "t1w_preproc"
+        ],
+        "directory":"derivatives/superres",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "superres"}}
+    }, 
+    "t1ext_ashs":
+    {
+        "input_files": [
+            "t1w_preproc", "superres"
+        ],
+        "directory":"derivatives/ASHST1",
+        "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHST1ant", "desc": "lfsegheur"}}
+    }
+
+}
+
+# print(proc_steps['t1ext_ashs']['input_files'])
 

@@ -18,9 +18,9 @@ def make_output_json_file(json_filepath, input_bids_uri, script_loc):
             input_bids_uri
         ]
     }
-
-    with open(json_filepath, "w") as file:
-        json.dump(json_info, file, indent=4)
+    print(current_date)
+    # with open(json_filepath, "w") as file:
+        # json.dump(json_info, file, indent=4)
     return
 
 
@@ -28,10 +28,10 @@ def wrap_submit_superres(input, output, bsub_options):
     print('this is the superres function in test.py')
 
     script_filepath=os.path.join(os.path.dirname(__file__),"superres_just_bash_parts.sh")
-    print(f"bsub {bsub_options} bash {script_filepath} {input.file_hard_path} {output.file_hard_path}")
+    # print(f"bsub {bsub_options} bash {script_filepath} {input.file_hard_path} {output.file_hard_path}")
 
-    json_filepath = output.json_file
-    make_output_json_file(json_filepath, input.bids_uri, script_filepath)
+    # json_filepath = output.json_file
+    # make_output_json_file(json_filepath, input.bids_uri, script_filepath)
         ## but I really need the SRPATH value that's coded in the script itself now...
 
     return 
@@ -46,27 +46,28 @@ def wrap_submit_T1ASHS(input, output, bsub_options):
     ashs_mopt_mat_file=""
     t1extashs_qc_slice_config=""
 
-    superres_nifti = input.file_hard_path
-    t1trim_nifti = "" ## TODO: derive from superres how?
+    # superres_nifti = input.file_hard_path
+    # t1trim_nifti = "" ## TODO: derive from superres how? set filters as class attribute so they can be accessed here
 
-    output_dir=output.image_dir
-    id_opt=output.subject
+    # output_dir=output.image_dir
+    # id_opt=output.subject
     # print(f"bsub {bsub_options} bash {os.path.join(os.path.dirname(__file__),'ashs.sh')}")
 
     ## could call directly from here without doing more set up in a bash script?
     ## all ashs calls would be separate instead of running from one script (that's ok)
 
     ## get tmpdir function here 
-    ashs_tmpdir=""
-    options=f"-a {ashs_t1ext_atlas} -g {t1trim_nifti} -f {superres_nifti} \
-          -w {ashs_tmpdir} -T -d -I {id_opt} -m {ashs_mopt_mat_file} -M -C {t1extashs_qc_slice_config}"
+    # ashs_tmpdir=""
+    # options=f"-a {ashs_t1ext_atlas} -g {t1trim_nifti} -f {superres_nifti} \
+    #       -w {ashs_tmpdir} -T -d -I {id_opt} -m {ashs_mopt_mat_file} -M -C {t1extashs_qc_slice_config}"
     ## set ASHS_ROOT for system -- subprocess(export ASHSROOT)
     # print(f"bsub {bsub_options} bash {ASHS_ROOT}/bin/ashs_main.sh {options}")
 
     ## clean up tmpdir -- function shared with other ashs calls?
 
-    # make_output_json_file()
+    # make_output_json_file(output.json_file, input.bids_uri, "")
 
+    ### TODO: change structure:run.py == picsl_bids_pipeline, __init__ file with imports & other global stuff from configs.py 
     return
 
 

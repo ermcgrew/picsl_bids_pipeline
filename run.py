@@ -2,19 +2,21 @@
 
 import argparse
 import bids
+from bids.layout import parse_file_entities
+
 from copy import deepcopy
-from datetime import datetime
+# from datetime import datetime
 import json
 import logging
-import os
+# import os
 import pandas as pd
 from pprint import pprint
 from naccsc_configs import *
 from wrap_submit_scripts import wrap_submit_superres, wrap_submit_T1ASHS
 
 
-current_date = datetime.now().strftime("%Y%m%d")
-current_date_time = datetime.now().strftime("%Y%m%dT%H%M%S")
+# current_date = datetime.now().strftime("%Y%m%d")
+# current_date_time = datetime.now().strftime("%Y%m%dT%H%M%S")
 
 
 # pass a filepath for an image
@@ -31,7 +33,6 @@ class bids_image():
         self.json_file = self.file_hard_path.replace("nii.gz","json")
         self.bids_uri = f"bids::sub-{self.file_hard_path.split("/sub-",1)[-1]}" #format as: bids:ds000001:sub-02/anat/sub-02_T1w.nii.gz
 
-    ## not part of init -- should only make dirs for a instance if actually running the code that will populate them
     def make_session_dirs(self):
         try:
             os.makedirs(self.image_dir)
@@ -42,13 +43,13 @@ class bids_image():
 
 def make_bids_dir(step):
     dir_to_make = os.path.join(bids_dir_filepath,"derivatives",processing_steps[step]['output_dir_name'])
-    print(f"Making bids directory {dir_to_make}")
     if not os.path.exists(dir_to_make):
+        logging.debug(f"Making bids directory {dir_to_make}")
         os.makedirs(f"{dir_to_make}/code/logs/{processing_steps[step]['output_dir_name']}")
         if not os.path.exists(f"{dir_to_make}/dataset_description.json"):
             make_dataset_descript_json(dir_to_make,step)
     else:
-        print("directory already exists")
+        logging.debug("directory already exists")
     return 
 
 
@@ -59,9 +60,11 @@ def make_dataset_descript_json(dirpath,step):
 
 
 ## use pybids library to get filepaths for existing bids files and create bids_image objects
+## to access derivative files, pass the derivative directory and validate = False
 def get_images(data_dir_filepath, filters, validate_bids=False):
-    ## pass filepath to derivative directory with validate=False 
+    # print(f"it's definitely in the get_images function: {data_dir_filepath}")
     layout = bids.BIDSLayout(data_dir_filepath, validate = validate_bids)
+    # print("after the layout setup")
     allimages = layout.get(return_type = "filename", extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = True)
     # print(allimages)
     ## TODO: decide behavior when no images found -- raise error here or is empty list ok?
@@ -71,14 +74,34 @@ def get_images(data_dir_filepath, filters, validate_bids=False):
     return bidsimage_objects
 
 
-## use pybids library to get filepaths for bids files that don't yet exist and create bids_image objects
-## build_path only create file name, not directory structure
+## use pybids library to get bids file names files that don't yet exist, then create bids_image objects
+## outputdir must be the exact directory containing the file, e.g. bids/derivatives/pipeline1/sub-01/ses-01/anat
 def build_bids_filepath(outputdir, this_step_filters_output):
-    # print('building bids filepath')
     pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
     layout = bids.BIDSLayout(outputdir, validate = False)
     output_file = bids_image(layout.build_path(this_step_filters_output, pattern, validate=False))
     return output_file
+
+
+## filter for 800um, MPRAGE priority
+def t1w_priority(image_objects=[]):
+    eight_check = [i for i in image_objects if "800um" in i.file_hard_path]
+    if len(eight_check) > 0:
+        # print('800um found, drop others')
+        return eight_check
+        # image_objects = eight_check
+        # this_step_filters_input['acquisition'] = "800um"
+    else:
+        mprage_check = [i for i in image_objects if "MPRAGE" in i.file_hard_path]
+        if len(mprage_check) > 0: 
+            # print("No 800um but found MPRAGE instead, use that one")
+            return mprage_check
+            # image_objects = mprage_check
+            # this_step_filters_input['acquisition'] = "MPRAGE1mm"
+        else:
+            print(f"No 800um or MPRAGE acquisitions found.")
+            return
+    
 
 
 ### -w argument has to be in double quotes
@@ -97,60 +120,101 @@ def set_submit_options(this_job_name, output_dir, parent_job_name):
     return f"{jobname} {output} {wait}"
 
 
+## set up common bids attributes before calling specific processing script with any particulars 
 def submit_process_jobs(sub,ses,steptodo):  
-    '''sets up common bids attributes before calling specific processing script with any particulars'''
-    
-    ##### Get input file(s)
-    this_step_filters_input = {**processing_steps[steptodo]['input_filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
-    print(f"Using filters: {this_step_filters_input} to find images")
-    input_files = get_images(os.path.join(bids_dir_filepath,processing_steps[steptodo]['input_dir_filepath']), this_step_filters_input)
-    ## TODO: make step_to_do a class populated from config? could access folders more easily??
 
-    ## NOTE: regex on acquisition still returning both values instead of only 1, might be fixable, tempfilter post-get_images function added
-    ## hard-coded filter for now while pybids returning all possible option non-preferentially 
-    ## also updates filter variable for future use based on which acq found
-    eight_check = [i for i in input_files if "800um" in i.file_hard_path]
-    if len(eight_check) > 0:
-        print('800um found, drop others')
-        input_files = eight_check
-        this_step_filters_input['acquisition'] = "800um"
-    else:
-        mprage_check = [i for i in input_files if "MPRAGE" in i.file_hard_path]
-        if len(mprage_check) > 0: 
-            print("No 800um but found MPRAGE instead, use that one")
-            input_files = mprage_check
-            this_step_filters_input['acquisition'] = "MPRAGE1mm"
+    ## TODO: copy just the files for sub into a tmpdir to speed up bids_layout 
 
+    ## Get input file(s)
+    ## filtering for two kinds of files: duplicate runs & all necessary input files    
+    inputfiles=[]
+    for ift in proc_steps[steptodo]['input_files']:
+        this_step_filters_input = {**proc_steps[ift]['filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
+        # print(f"Using filters: {this_step_filters_input} to find input image")
+        found_files = get_images(os.path.join(bids_dir_filepath,proc_steps[ift]['directory']), this_step_filters_input)
+        # print("back to the main function")
+        ## NOTE: pybids regex on acquisition still returning both values instead of only 1, might be fixable in the future
+        filtered_files = t1w_priority(found_files) # takes list of objects, returns updated list
+        if filtered_files == None:
+            print(f"missing an input file for step {ift}")
+            return 
         else:
-            print(f"No 800um or MPRAGE acquisitions found for {this_step_filters_input}.")
-            return
- 
+            inputfiles = inputfiles + filtered_files
+
+    ### Account for multiple runs of same image type so each run will be processed separately, using a list of lists that have image objects 
+    runcheck=[x for x in inputfiles if "run" in x.file_hard_path]
+    if len(runcheck) >= 1:
+        run_values = sorted(set([str(parse_file_entities(x.file_hard_path)['run']) for x in inputfiles]))
+        ## set because otherwise multiple inputs and runs will increase the actual number of runs, str because zero-padded int is not a great data type
+        runs=[]
+        for value in run_values:
+            runs.append([x for x in inputfiles if f"run-{value}" in x.file_hard_path])
+    else:
+        runs = [inputfiles]
+
+    for i in range(0,len(runs)):
+        print(f"setting up processing for run # {i}")
+        inputs = runs[i]
+        # print('here are all the inputs:')
+        # for i in inputs:
+        #     print(i.file_hard_path)
+      
+
+    # this_step_filters_input = {**processing_steps[steptodo]['input_filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
+    # print(f"Using filters: {this_step_filters_input} to find images")
+    # input_files = get_images(os.path.join(bids_dir_filepath,processing_steps[steptodo]['input_dir_filepath']), this_step_filters_input)
+    # ## TODO: make step_to_do a class populated from config? could access folders more easily??
+    # eight_check = [i for i in input_files if "800um" in i.file_hard_path]
+    # if len(eight_check) > 0:
+    #     print('800um found, drop others')
+    #     input_files = eight_check
+    #     this_step_filters_input['acquisition'] = "800um"
+    # else:
+    #     mprage_check = [i for i in input_files if "MPRAGE" in i.file_hard_path]
+    #     if len(mprage_check) > 0: 
+    #         print("No 800um but found MPRAGE instead, use that one")
+    #         input_files = mprage_check
+    #         this_step_filters_input['acquisition'] = "MPRAGE1mm"
+    #     else:
+    #         print(f"No 800um or MPRAGE acquisitions found for {this_step_filters_input}.")
+    #         return
     # Run processing for each image found
-    for i in input_files:
-        print(f"use this input file: {i.file_hard_path}") 
+    # for i in input_files:
+    #     print(f"use this input file: {i.file_hard_path}") 
 
         ## set up output directory path and output filters
-        outputdir=os.path.join(bids_dir_filepath,"derivatives",processing_steps[steptodo]['output_dir_name'])
-        ### Adjust filters for output file (keep any values from input filters if not changed in output_files for step)
-        this_step_filters_output = deepcopy(this_step_filters_input)
-        for key,value in processing_steps[steptodo]['output_filters'].items(): 
-            if key in this_step_filters_output:
-                print(f'updating {key} to {value} for output file')
-                this_step_filters_output[key] = value
-        
+        outputdir=os.path.join(bids_dir_filepath,proc_steps[steptodo]['directory'])
+        # print(outputdir)
+   
+        ### Adjust filters for output file: parse_bids_entities(input) to get acq- and possibly run- values
+        output_filters = {**proc_steps[steptodo]['filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
+        input_filters = parse_file_entities(inputs[0].file_hard_path)
+        output_filters['acquisition'] = input_filters['acquisition']
+        if "run" in input_filters.keys():
+            output_filters['run'] = input_filters['run']
+        # print(output_filters)
+
+        # this_step_filters_output = deepcopy(this_step_filters_input)
+        # for key,value in proc_steps[steptodo]['filters'].items(): 
+        #     if key in this_step_filters_output:
+        #         print(f'updating {key} to {value} for output file')
+        #         this_step_filters_output[key] = value
+
         ### Quick check for output file
         if output_check == True:
-            output_files = get_images(outputdir,this_step_filters_output)
+            output_files = get_images(outputdir,output_filters)
+            # print("back in the main function again")
             for o in output_files: 
                 # print(o.file_hard_path)
                 if os.path.isfile(o.file_hard_path):
-                    print(f"Output file {o.file_hard_path} already exists, not submitting the job.")
+                    print(f"Output file {o.file_hard_path} already exists, not submitting the job. figure out how to stop for this run only")
                     ## TODO: break/error of some kind -- only for this input file, so not a full return. continue? need to not be in a for loop of output files
                     ## TODO: also handle the list aspect -- list comprehension with boolean check?
                     return ## return for now, won't work in implementation b/c of run possibilities 
         
         ## get filepath for output file 
-        output_file = build_bids_filepath(os.path.join(outputdir,i.sub_ses_datatype_dirs), this_step_filters_output)
+        output_file = build_bids_filepath(os.path.join(outputdir,inputs[0].sub_ses_datatype_dirs), output_filters)
+        # print(output_file.file_hard_path)
         output_file.make_session_dirs() 
 
         ## set up bsub options 
@@ -159,25 +223,26 @@ def submit_process_jobs(sub,ses,steptodo):
         ### TODO: bsub options function to add -w code tracking? 
             # submit_options = set_submit_options(this job name, log dir, output_job_name)  
             ## parent job info -- not sure how that will be tracked yet
-            ##
 
         ## TODO: how to set up run scripts as variables linked to each step: 
             ##e.g. processing_steps[steptodo]['run_script'] = bids_superres.sh, run scripts in the same folder as this script, os.path.join(this_script_dir,variable)
             ## hard-code if/else
             # python modules imported -- no, can't call a function by having the value from a variable be the function name (I think)
-        ## TODO: handling steps with multiple inputs
         if steptodo == "superres":
             # print(output_file.file_hard_path)
-            wrap_submit_superres(i, output_file, submit_options)
+            wrap_submit_superres(inputs, output_file, submit_options)
             # process_script_path = os.path.join(os.path.dirname(__file__),processing_steps[steptodo]['processing_script'])
             # print(f"bsub {submit_options} bash {process_script_path} {i.file_hard_path} {output_file.file_hard_path}")
         elif steptodo == "t1ext_ashs":
-            wrap_submit_T1ASHS(i, output_file, submit_options)
+            wrap_submit_T1ASHS(inputs, output_file, submit_options)
 
     return 
 
 
 if __name__ == "__main__":
+    logger = logging.getLogger(__name__)
+    # logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.DEBUG)
+    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
 
     ## two ways to do processing:
         ## 1. run all sub/ses listed in csv
@@ -221,8 +286,12 @@ if __name__ == "__main__":
         output_check = False
     else:
         output_check = True
+    # output_check = args.check_for_output
+    # print(f"this is the output_check variable {output_check}")
+    ## TODO: should this be a store_true arg instead? 
 
     csv="/project/wolk_4/naccsc_bids/lists/sm_testlist.csv"
+    # csv="/project/wolk_4/naccsc_bids/lists/rerun_one.csv"
     ## TODO: faster way to read csv than pandas df? 
         ## try engine="pyarrow", need to get pyarrow installed first though
         ## reading the csv is a trivial gain if switching to parallel session processing, not a priority
@@ -237,7 +306,7 @@ if __name__ == "__main__":
         print(f"Starting processing for subject {sub} session {ses}")
 
         for steptodo in args.stepstodo: 
-            # TODO: t1preproc/ants require whole csv list, config script -- handle that setup differently?
+            ## TODO: t1preproc/ants require whole csv list, config script -- handle that setup differently?
             submit_process_jobs(sub,ses,steptodo)
         
         break
