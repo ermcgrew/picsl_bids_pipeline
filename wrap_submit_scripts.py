@@ -4,87 +4,89 @@
 ## these functions contain any of the specific-to-each-step inputs/outputs and call the bash scripts that do the processing 
 ## all receive same parameters: input, output, bsub_options
 
-import json
-import os
-import subprocess 
-## have all imports & other standard stuff in configs, then import configs into all files? 
+from naccsc_configs import *
+
+
+def do_subprocess_run(list_of_args):
+    ## list_of_args must have:
+        # each bsub option separate list item
+        # flag and arg go together for bsub options e.g. "-o filepath/log.txt" "-J step1"
+    try: 
+        result = subprocess.run(list_of_args, capture_output=True, encoding="utf-8", timeout=10, check=True)
+        result_list = result.stdout.split("\n")
+        print(result_list)
+        if "Job <" in result_list[0]:
+            jobidnum=result_list[0].split("<")[1].split(">")[0]
+            # print(jobidnum)
+        return jobidnum
+    ### TODO: how to make job submission fail so I can test these exceptions??
+    except subprocess.CalledProcessError as exc:
+        ## included because of check = True, if non-zero exit code
+        print(f"Process failed because did not return a successful return code. "
+            f"Returned {exc.returncode}\n{exc}")
+    except subprocess.TimeoutExpired as exc:
+        print(f"Process timed out.\n{exc}")
 
 
 ## TODO: other info for json files?
-def make_output_json_file(json_filepath, input_bids_uri, script_loc):
-    # print('making ouptut json file')
-    json_info = {
-        "Sources" : [
-            input_bids_uri
-        ]
-    }
-    print(current_date)
-    # with open(json_filepath, "w") as file:
-        # json.dump(json_info, file, indent=4)
+def make_output_json_file(json_filepath, input_bids_uri, script_loc, specific_info):
+    ## input_bids_uri is a list of bids-uri-formatted source files
+    logging.debug(f"Making json file {json_filepath}")
+    json_info = {"Sources": input_bids_uri, "ProcessDate": current_date_time, "Script": script_loc, **specific_info}
+    logging.debug(f"Writing this info to the json: {json_info}")
+    with open(json_filepath, "w") as file:
+        json.dump(json_info, file, indent=4)
     return
 
 
-def wrap_submit_superres(input, output, bsub_options):
-    print('this is the superres function in test.py')
-
-    script_filepath=os.path.join(os.path.dirname(__file__),"superres_just_bash_parts.sh")
-    # print(f"bsub {bsub_options} bash {script_filepath} {input.file_hard_path} {output.file_hard_path}")
-
-    # json_filepath = output.json_file
-    # make_output_json_file(json_filepath, input.bids_uri, script_filepath)
+def wrap_submit_superres(inputs, output, bsub_options):
+    script_filepath=os.path.join(os.path.dirname(__file__),"superres_just_bash_parts.sh")    
+    allargs = ['bsub'] + bsub_options + ["bash", script_filepath, inputs[0].file_hard_path, output.file_hard_path]
+    # print(allargs)
+    jobid = do_subprocess_run(allargs)
+    print(f"jobid {jobid} returned to wrapper script")
+    more_info = {}
+    make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], "", more_info)
         ## but I really need the SRPATH value that's coded in the script itself now...
+    return jobid
 
-    return 
 
-
-def wrap_submit_T1ASHS(input, output, bsub_options):
+def wrap_submit_T1ASHS(inputs, output, bsub_options):
     print("this is the wrap submit T1ashs function")
-    ## uses superres nifti as input needed (b/c t1trim will exist because it's the input for superres)
+    ##TODO: check length of inputs list or length of list comprehension? 
+    ## Also i don't love the use of bids entity keywords here for distinguishing files, but order not guaranteed(?)
+    ## TODO: use step keywords to access input step 'desc' keyword? 
+    # input_step_keyword = input_image.this_step['input_files']
+    # input_step_keyword['filters']['desc']
+    ## order not guaranteed-- what if superres keyword first and that's what gets searched for in t1 image opt?
 
-    ## store these filepaths here, or in a config file? Will they change with ASHS update to bids?
-    ashs_t1ext_atlas="/project/bsc/shared/AshsAtlases/ashs_atlas_upennpmc_t1ext_20240617/final/"
-    ashs_mopt_mat_file=""
-    t1extashs_qc_slice_config=""
+    t1trim_nifti = [input_image.file_hard_path for input_image in inputs if "preproc" in input_image.file_hard_path][0] # gopt, t1 image
+    superres_nifti = [input_image.file_hard_path for input_image in inputs if "superres" in input_image.file_hard_path][0] #fopt, t2 image
+    output_dir=output.image_dir
+    id_opt=output.subject
+    ashs_type = "T1ext"
+    ## send to ashs script with ashs root and output directory and ashstype as first 3 positional args, then everything else as ashs call set up
+    ## add arg to ashs.sh that is which kind of ashs, use that keyword for tmpdir cleanup. 
+    ## pass from here, which is already separated into each type of ashs, can be consistent with any other wrapper script
+ 
+    allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
+                 output_dir, ashs_type, f"-a {ashs_t1ext_atlas}", f"-g {t1trim_nifti}", 
+                 f"-f {superres_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", 
+                 "-M", f"-C {t1extashs_qc_slice_config}"]
+    # print(allargs)
+    jobid=do_subprocess_run(allargs)
 
-    # superres_nifti = input.file_hard_path
-    # t1trim_nifti = "" ## TODO: derive from superres how? set filters as class attribute so they can be accessed here
+    more_info = {
+        "Atlas": ashs_t1ext_atlas
+    }
+    make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], ashs_root, more_info)
+    ## output json should always be generated, so there's a record of what files have been tried even if the job fails
+    ## each new run generates a new json file, overwriting the old one
 
-    # output_dir=output.image_dir
-    # id_opt=output.subject
-    # print(f"bsub {bsub_options} bash {os.path.join(os.path.dirname(__file__),'ashs.sh')}")
-
-    ## could call directly from here without doing more set up in a bash script?
-    ## all ashs calls would be separate instead of running from one script (that's ok)
-
-    ## get tmpdir function here 
-    # ashs_tmpdir=""
-    # options=f"-a {ashs_t1ext_atlas} -g {t1trim_nifti} -f {superres_nifti} \
-    #       -w {ashs_tmpdir} -T -d -I {id_opt} -m {ashs_mopt_mat_file} -M -C {t1extashs_qc_slice_config}"
-    ## set ASHS_ROOT for system -- subprocess(export ASHSROOT)
-    # print(f"bsub {bsub_options} bash {ASHS_ROOT}/bin/ashs_main.sh {options}")
-
-    ## clean up tmpdir -- function shared with other ashs calls?
-
-    # make_output_json_file(output.json_file, input.bids_uri, "")
-
-    ### TODO: change structure:run.py == picsl_bids_pipeline, __init__ file with imports & other global stuff from configs.py 
-    return
+    return jobid
 
 
 def wrap_submit_T2_ASHS():
     print("this is the t2 ashs function in test.py")
-    
-    #ashs inputs if keeping the same ashs run script
-    # t1trim=$3 --passed as input #1
-    # t2link=$4 --pased as input #2
-    # output_directory=$5 -- passed in
-    # id=$6 -- derive from input
-
-
-    ## static from config
-    # ashs_root=$1
-    # atlas=$2
-    # m_opt=$7
-
 
     return

@@ -1,17 +1,36 @@
 #!/usr/bin/env python3
 
+import argparse
+import bids
+from bids.layout import parse_file_entities
+from copy import deepcopy
 from datetime import datetime
+import json
+import logging
 import os
+import pandas as pd
+import subprocess 
 
 current_date = datetime.now().strftime("%Y%m%d")
 current_date_time = datetime.now().strftime("%Y%m%dT%H%M%S")
 
-#### filepaths, filters to fill out for each dataset
+logging.basicConfig(level=logging.INFO)
 
+#### filepaths, filters to fill out for each dataset
 ## Top level bids directory
 bids_dir_filepath = "/project/wolk_4/naccsc_bids/bids"
 ## python environment:
 ## conda activate /project/wolk_4/emcgrew/picslbids
+
+
+##ASHS processing cluster filepaths
+ashs_root = "/project/hippogang_2/pauly/wolk/ashs-fast"
+icv_atlas = "/project/bsc/shared/AshsAtlases/ashs_atlas_icv/final"
+ashs_t2_atlas = "/project/bsc/shared/AshsAtlases/ashs_atlas_upennpmc_20170810"
+ashs_t1ext_atlas = "/project/bsc/shared/AshsAtlases/ashs_atlas_upennpmc_t1ext_20240617/final/" 
+ashs_mopt_mat_file = "/project/wolk/ADNI2018/scripts/adni_processing_pipeline/utilities/identity.mat"
+t1extashs_qc_slice_config="/project/wolk/ADNI2018/scripts/adni_processing_pipeline/utilities/ashs_config.sh"
+
 
 ### filters to use for all steps performed on each type of image
 basic_bids_filters = {
@@ -41,76 +60,26 @@ basic_bids_filters = {
 ## Users can edit the filters to select different files to run through each step
 ## (e.g. If you wanted to run superres step on original un-trimmed T1w scan, remove "desc: preproc" from superres['input_filters'])
 
-processing_steps = {
-    "T1w_preproc":
-    {
-        "input_step": None, 
-        "input_dir_filepath":"",
-        "input_filters":{
-            **basic_bids_filters['t1w']
-        },
-        "processing_script": "", 
-        "output_dir_name": "T1wPreprocessing_061", 
-        "output_filters": 
-            {
-                "desc": "preproc"
-            },
-        "suffix": "t1w"
-    },
-    "xANTs": 
-    {
-        "input_step":"T1w_preproc", "output_dir_name":""
-    },
-    "longANTs": 
-    {
-        "input_step":"xANTs", "output_dir_name":""
-    },
-    "parcANTs": 
-    {
-        "input_step":"longANTs", "output_dir_name":""
-    },
-    "t1icv": 
-    {
-        "input_step":"T1w_preproc", "output_dir_name":"ASHSICV"
-    },
-     "superres": 
-    {
-        "input_step":"T1w_preproc", 
-        "input_dir_filepath":"derivatives/T1wPreprocessing_061",
-        "input_filters":{**basic_bids_filters['t1w'], **{"desc": "preproc"}}, 
-        "processing_script": "superres_just_bash_parts.sh", 
-        "output_dir_name": "superres", 
-        "output_filters": {"desc": "superres"},
-        "suffix": "t1w"
-    },
-    "t1ext_ashs": 
-    {
-        # "input_step":"superres", 
-        # "input_dir_filepath":"derivatives/superres",
-        # "input_filters":[{**basic_bids_filters['t1w'], **{"desc": "superres"}},{**basic_bids_filters['t1w'], **{"desc": "preproc"}}], 
-        "inputs":
-        [
-            { 
-                "input_step":"superres",
-                "input_dir_filepath":"derivatives/superres",
-                "input_filters":{**basic_bids_filters['t1w'], **{"desc": "superres"}}
-            },
-            {
-                "input_step":"T1w_preproc", 
-                "input_dir_filepath":"derivatives/T1wPreprocessing_061",
-                "input_filters":{**basic_bids_filters['t1w'], **{"desc": "preproc"}}, 
-            }
-        ],
-        "processing_script": "",  ## not useful since i'm not passing processing_step to the wrap_submit scripts
-        "output_dir_name":"ASHST1", 
-        "output_filters":{"atlas": "ASHST1ant", "desc": "lfsegheur"},
-        "suffix": "t1w"
-    },
-    "crashs": 
-    {
-        "input_step":"t1ext_ashs", "output_dir_name":"CRASHS"
-    }
-}
+#     "xANTs": 
+#     {
+#         "input_step":"T1w_preproc", "output_dir_name":""
+#     },
+#     "longANTs": 
+#     {
+#         "input_step":"xANTs", "output_dir_name":""
+#     },
+#     "parcANTs": 
+#     {
+#         "input_step":"longANTs", "output_dir_name":""
+#     },
+#     "t1icv": 
+#     {
+#         "input_step":"T1w_preproc", "output_dir_name":"ASHSICV"
+#     },
+#     "crashs": 
+#     {
+#         "input_step":"t1ext_ashs", "output_dir_name":"CRASHS"
+#     }
 
 
 ## this is files, actually, not steps
@@ -141,6 +110,4 @@ proc_steps = {
     }
 
 }
-
-# print(proc_steps['t1ext_ashs']['input_files'])
 
