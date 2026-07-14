@@ -1,7 +1,0 @@
-{
-  "Script": "/project/wolk_4/naccsc_bids/scripts/adni_processing_pipeline/utilities/build_release",
-  "ProcessDate": "2026-06-05",
-  "Sources": [
-    "bids:NACC-SC_BIDS:test"
-  ]
-}

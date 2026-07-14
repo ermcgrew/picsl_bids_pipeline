@@ -76,10 +76,7 @@ basic_bids_filters = {
 #     {
 #         "input_step":"T1w_preproc", "output_dir_name":"ASHSICV"
 #     },
-#     "crashs": 
-#     {
-#         "input_step":"t1ext_ashs", "output_dir_name":"CRASHS"
-#     }
+
 
 
 ## this is files, actually, not steps
@@ -107,7 +104,22 @@ proc_steps = {
         ],
         "directory":"derivatives/ASHST1",
         "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHST1ant", "desc": "lfsegheur"}}
-    }
+    },
+    "crashs":
+    {
+        "input_files": [
+            "t1ext_ashs"
+        ],
+        "directory":"derivatives/CRASHS",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "superres"}}
+    }, 
+    "t2ashs":
+    {
+        "input_files": [
+            "t1w_preproc"
+        ],
+        "directory":"derivatives/ASHST2",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "superres"}}
+    }, 
 
 }
-

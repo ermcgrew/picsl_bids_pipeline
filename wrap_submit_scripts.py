@@ -8,25 +8,19 @@ from naccsc_configs import *
 
 
 def do_subprocess_run(list_of_args):
-    ## list_of_args must have:
-        # each bsub option separate list item
-        # flag and arg go together for bsub options e.g. "-o filepath/log.txt" "-J step1"
+    ## list_of_args must have each bsub option as separate list item & args going to proc script
     try: 
         result = subprocess.run(list_of_args, capture_output=True, encoding="utf-8", timeout=10, check=True)
         result_list = result.stdout.split("\n")
         print(result_list)
         if "Job <" in result_list[0]:
-            jobidnum=result_list[0].split("<")[1].split(">")[0]
-            # print(jobidnum)
-        return jobidnum
-    ### TODO: how to make job submission fail so I can test these exceptions??
+            return True
+            # jobidnum=result_list[0].split("<")[1].split(">")[0]
     except subprocess.CalledProcessError as exc:
         ## included because of check = True, if non-zero exit code
-        print(f"Process failed because did not return a successful return code. "
-            f"Returned {exc.returncode}\n{exc}")
+        print(f"Process failed with non-zero exit code: {exc.returncode}\n{exc}\nError Message: {exc.stderr}")
     except subprocess.TimeoutExpired as exc:
         print(f"Process timed out.\n{exc}")
-
 
 ## TODO: other info for json files?
 def make_output_json_file(json_filepath, input_bids_uri, script_loc, specific_info):
@@ -42,17 +36,18 @@ def make_output_json_file(json_filepath, input_bids_uri, script_loc, specific_in
 def wrap_submit_superres(inputs, output, bsub_options):
     script_filepath=os.path.join(os.path.dirname(__file__),"superres_just_bash_parts.sh")    
     allargs = ['bsub'] + bsub_options + ["bash", script_filepath, inputs[0].file_hard_path, output.file_hard_path]
-    # print(allargs)
-    jobid = do_subprocess_run(allargs)
-    print(f"jobid {jobid} returned to wrapper script")
+    job_submitted = do_subprocess_run(allargs)
+    
     more_info = {}
     make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], "", more_info)
         ## but I really need the SRPATH value that's coded in the script itself now...
-    return jobid
+    if job_submitted:
+        return output.job_name
+    else:
+        return ## returns [None] to run.py
 
 
 def wrap_submit_T1ASHS(inputs, output, bsub_options):
-    print("this is the wrap submit T1ashs function")
     ##TODO: check length of inputs list or length of list comprehension? 
     ## Also i don't love the use of bids entity keywords here for distinguishing files, but order not guaranteed(?)
     ## TODO: use step keywords to access input step 'desc' keyword? 
@@ -73,8 +68,7 @@ def wrap_submit_T1ASHS(inputs, output, bsub_options):
                  output_dir, ashs_type, f"-a {ashs_t1ext_atlas}", f"-g {t1trim_nifti}", 
                  f"-f {superres_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", 
                  "-M", f"-C {t1extashs_qc_slice_config}"]
-    # print(allargs)
-    jobid=do_subprocess_run(allargs)
+    job_submitted = do_subprocess_run(allargs)
 
     more_info = {
         "Atlas": ashs_t1ext_atlas
@@ -82,8 +76,11 @@ def wrap_submit_T1ASHS(inputs, output, bsub_options):
     make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], ashs_root, more_info)
     ## output json should always be generated, so there's a record of what files have been tried even if the job fails
     ## each new run generates a new json file, overwriting the old one
-
-    return jobid
+    
+    if job_submitted:
+        return output.job_name
+    else:
+        return
 
 
 def wrap_submit_T2_ASHS():

@@ -17,8 +17,14 @@ class bids_image():
         self.log_file = os.path.join(self.containing_bids_dir,"code","logs",f"{self.deriv_dir_name}_{self.subject}_{self.session}_{current_date_time}_%J.txt")
         self.json_file = self.file_hard_path.replace("nii.gz","json")
         self.bids_uri = f"bids::sub-{self.file_hard_path.split("/sub-",1)[-1]}" #format as: bids:ds000001:sub-02/anat/sub-02_T1w.nii.gz
+        self.filename = os.path.basename(self.file_hard_path)
+        self.runnum = [x for x in self.filename.split("_") if "run" in x]
 
         self._match_file_to_step()
+        if self.runnum:
+            self.job_name = f"{self.subject}_{self.session}_{self.runnum[0]}_{self.this_step}"
+        else:
+            self.job_name = f"{self.subject}_{self.session}_{self.this_step}"
 
     def make_session_dirs(self):
         try:
@@ -62,7 +68,6 @@ def make_dataset_descript_json(dirpath,step):
 def get_images(data_dir_filepath, filters, validate_bids=False):
     layout = bids.BIDSLayout(data_dir_filepath, validate = validate_bids)
     allimages = layout.get(return_type = "filename", extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = True)
-    # print(allimages)
     ## TODO: decide behavior when no images found -- raise error here or is empty list ok?
     bidsimage_objects = []
     for image in allimages:
@@ -83,12 +88,10 @@ def build_bids_filepath(outputdir, this_step_filters_output):
 def t1w_priority(image_objects=[]):
     eight_check = [i for i in image_objects if "800um" in i.file_hard_path]
     if len(eight_check) > 0:
-        # print('800um found, drop others')
         return eight_check
     else:
         mprage_check = [i for i in image_objects if "MPRAGE" in i.file_hard_path]
         if len(mprage_check) > 0: 
-            # print("No 800um but found MPRAGE instead, use that one")
             return mprage_check
         else:
             print(f"No 800um or MPRAGE acquisitions found.")
@@ -116,6 +119,8 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                 inputfiles = inputfiles + filtered_files
         else:
             inputfiles = found_files
+        
+    this_sess_jobs=[]
 
     ### Account for multiple runs of same image type so each run will be processed separately, using a list of lists that have image objects 
     runcheck=[x for x in inputfiles if "run" in x.file_hard_path]
@@ -131,7 +136,7 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
     for i in range(0,len(runs)):
         print(f"setting up processing for run # {i}")
         inputs = runs[i]
-        logging.debug(f'here are all the inputs: {[(i.file_hard_path) for i in inputs]}')    
+        logging.info(f"All input files: {[(i.file_hard_path) for i in inputs]}")    
 
         ## set up output directory path and output filters
         outputdir=os.path.join(bids_dir_filepath,proc_steps[steptodo]['directory'])
@@ -142,7 +147,6 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
         output_filters['acquisition'] = input_filters['acquisition']
         if "run" in input_filters.keys():
             output_filters['run'] = input_filters['run']
-        # print(output_filters)
 
         ### Quick check for output file
         if output_check == True:
@@ -158,24 +162,28 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
         if not dry_run:
             output_file.make_session_dirs() 
 
-        ## set up bsub options 
-        submit_options = [f"-o {output_file.log_file}"]
+        ## set up bsub options -- now separating bsub flags from their args in list
+        submit_options = ["-o", output_file.log_file, "-J", output_file.job_name]
         if wait_jobids:
-            print(f"for bsub -w code, add {wait_jobids}")
-            for i in range(0,len(wait_jobids)):
+            ## filter out other run numbers from jobid list
+            if output_file.runnum:
+                jobids_touse = [w for w in wait_jobids if output_file.runnum[0] in w]
+            else: 
+                jobids_touse = wait_jobids
+            for i in range(0,len(jobids_touse)):
                 if i == 0:
-                    wait_option = f"-w done({wait_jobids[i]})"
+                    wait_option = ["-w", f"done({jobids_touse[i]})"]
                 else:
-                    wait_option = wait_option + f" && done({wait_jobids[i]})"
-            submit_options.append(wait_option)
+                    wait_option[1] = wait_option[1] + f" && done({jobids_touse[i]})"
+            submit_options = submit_options + wait_option
 
-        ## TODO: how to set up run scripts as variables linked to each step: 
+        ## call step-specific wrap script to set up any other args & submit job to cluster 
         if steptodo == "superres":
-            jobidnum = wrap_submit_superres(inputs, output_file, submit_options)
+            this_sess_jobs.append(wrap_submit_superres(inputs, output_file, submit_options))
         elif steptodo == "t1ext_ashs":
-            jobidnum = wrap_submit_T1ASHS(inputs, output_file, submit_options)
-
-    return jobidnum
+            this_sess_jobs.append(wrap_submit_T1ASHS(inputs, output_file, submit_options))
+    
+    return this_sess_jobs
 
 
 if __name__ == "__main__":
@@ -196,8 +204,11 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--dry_run", action = "store_true", help = "Dry run this script without submitting any processing jobs.")
     # parser.add_argument("-t", "--select_todo_sessions", action = "store_true", help = "Check all sessions in the csv for any that need to be run and only submit jobs for those sessions instead of all sessions in csv.")
     # parser.add_argument("-f", "--filter_bids", help = "JSON file with bids filters only for acq- entity or other entities used to differentiate between images with the same suffix.")
-    parser.add_argument("-s", "--stepstodo", help = "", choices = list(proc_steps.keys()), nargs = "+") ##TODO: fix formatting on choices, printing as dict then list with dict in help function
-    parser.add_argument("-u", "--check_for_output", choices = ["skip_check", "check_first"], help = "Set behavior for checking for existing output. Skip the check or check before submitting a job. Default is to check first.", default = "check_first")
+    parser.add_argument("-s", "--stepstodo", help = "Processing step to run", choices = proc_steps.keys(), 
+                        nargs = "+") ##TODO: fix formatting on choices, printing as dict then list with dict in help function
+    parser.add_argument("-u", "--check_for_output", choices = ["skip_check", "check_first"], 
+                        help = "Set behavior for checking for existing output. Skip the check or check before submitting a job. Default is to check first.", 
+                        default = "check_first")
     
     ## always need to submit a csv (SUB, SES)
          ## not any versions with mridate and petdate as input -- have that match determined within registration scripts
@@ -232,7 +243,8 @@ if __name__ == "__main__":
     # print(f"this is the output_check variable {output_check}")
     ## TODO: should this be a store_true arg instead? 
 
-    ##TODO: put args.stepstodo in order
+    ## put args.stepstodo in order
+    arg_steps_ordered = [step_ordered for step_ordered in proc_steps.keys() for arg_step in args.stepstodo if step_ordered == arg_step]
 
     csv="/project/wolk_4/naccsc_bids/lists/sm_testlist.csv"
     # csv="/project/wolk_4/naccsc_bids/lists/rerun_one.csv"
@@ -250,20 +262,25 @@ if __name__ == "__main__":
         print()
         print(f"Starting processing for subject {sub} session {ses}")
 
-        for steptodo in args.stepstodo: 
+        for steptodo in arg_steps_ordered:
             ## TODO: t1preproc/ants require whole csv list, config script -- handle that setup differently?
             input_steps = proc_steps[steptodo]['input_files']
-            wait_jobids = [jobs_running[i] for i in input_steps if i in jobs_running.keys()]
+            for i in input_steps:
+                if i in jobs_running.keys():
+                    wait_jobids = jobs_running[i]
+                else:
+                    wait_jobids = []    
             jobidnum = submit_process_jobs(sub,ses,steptodo,wait_jobids)
             jobs_running[steptodo] = jobidnum
-        break
+        break 
 
     # test = bids_image("/project/wolk_4/naccsc_bids/bids/sub-132132/ses-132132x20250407x3TxABCD2/anat/sub-132132_ses-132132x20250407x3TxABCD2_acq-800um_T1w.nii.gz")
     # test = bids_image("/project/wolk_4/naccsc_bids/bids/derivatives/superres/sub-131378/ses-131378x20250410x3TxABCD2/anat/sub-131378_ses-131378x20250410x3TxABCD2_acq-800um_desc-superres_T1w.nii.gz")
+    # test = bids_image("/project/wolk_4/naccsc_bids/bids/derivatives/superres/sub-132455/ses-132455x20250414x3TxABCD2/anat/sub-132455_ses-132455x20250414x3TxABCD2_acq-800um_run-01_desc-superres_T1w.nii.gz")
+    # print(test.job_name)
     # print(test.sub_ses_datatype_dirs)
     # print(test.file_hard_path)
     # print(test.json_file)
     # print(test.this_step)
-
     # print(test.containing_bids_dir)
     # print(test.log_file)
