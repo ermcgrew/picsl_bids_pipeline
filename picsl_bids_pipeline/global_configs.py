@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+print(f"importing {__name__}")
 import argparse
 import bids
 from bids.layout import parse_file_entities

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-
+print(f"importing {__name__}")
 ## each processing script as a function/module that could be imported/called
 ## these functions contain any of the specific-to-each-step inputs/outputs and call the bash scripts that do the processing 
 ## all receive same parameters: input, output, bsub_options
 
-from naccsc_configs import *
+from global_configs import *
 
 
 def do_subprocess_run(list_of_args):
@@ -21,16 +21,6 @@ def do_subprocess_run(list_of_args):
         print(f"Process failed with non-zero exit code: {exc.returncode}\n{exc}\nError Message: {exc.stderr}")
     except subprocess.TimeoutExpired as exc:
         print(f"Process timed out.\n{exc}")
-
-## TODO: other info for json files?
-def make_output_json_file(json_filepath, input_bids_uri, script_loc, specific_info):
-    ## input_bids_uri is a list of bids-uri-formatted source files
-    logging.debug(f"Making json file {json_filepath}")
-    json_info = {"Sources": input_bids_uri, "ProcessDate": current_date_time, "Script": script_loc, **specific_info}
-    logging.debug(f"Writing this info to the json: {json_info}")
-    with open(json_filepath, "w") as file:
-        json.dump(json_info, file, indent=4)
-    return
 
 
 def wrap_submit_superres(inputs, output, bsub_options):
