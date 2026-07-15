@@ -193,40 +193,36 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
 
-    ## two ways to do processing:
-        ## 1. run all sub/ses listed in csv
-        ## 2. check all sub/ses in csv, get a list of which need to be done, submit only the todo sessionss for processing 
-
-    ## TODO: use positional arguments for required inputs (seems like the best practice way to do that)
-
     parser = argparse.ArgumentParser()
-    # parser.add_argument("-c", "--csv", help = "Csv of sub,ses without header.", required = True)
-    parser.add_argument("-d", "--dry_run", action = "store_true", help = "Dry run this script without submitting any processing jobs.")
-    # parser.add_argument("-t", "--select_todo_sessions", action = "store_true", help = "Check all sessions in the csv for any that need to be run and only submit jobs for those sessions instead of all sessions in csv.")
-    # parser.add_argument("-f", "--filter_bids", help = "JSON file with bids filters only for acq- entity or other entities used to differentiate between images with the same suffix.")
+    parser.add_argument("csv", help = "Csv of sub,ses without header.")
     parser.add_argument("-s", "--stepstodo", help = "Processing step to run", choices = proc_steps.keys(), 
                         nargs = "+") ##TODO: fix formatting on choices, printing as dict then list with dict in help function
-    parser.add_argument("-u", "--check_for_output", choices = ["skip_check", "check_first"], 
-                        help = "Set behavior for checking for existing output. Skip the check or check before submitting a job. Default is to check first.", 
-                        default = "check_first")
+    parser.add_argument("-d", "--dry_run", action = "store_true", help = "Dry run this script without submitting any processing jobs.")
+    parser.add_argument("-k", "--skip_output_check", action = "store_false", help = "Default behavior is to check for existing output before submitting a job. Include this flag to skip check.")
     
     ## always need to submit a csv (SUB, SES)
-         ## not any versions with mridate and petdate as input -- have that match determined within registration scripts
-    ## use csv as-is or parse for to-dos: store True to run function for parsing for to-dos (required to chose one or the other)
-    
-    ## TODO: for selecting to-do sessions, can also give directory path and check for completion?
-    ## TODO: which steps to do: chose from list: t1, t2, flair,diffusion,pet-mri reg*
-        ##  can give more granular step options (optional) for each sequence type processing
-    ## TODO: config file with filepaths
-    ## TODO: add option to overwrite existing output 
+        ## Don't need to have versions with mridate AND petdate as input -- have that match determined within registration scripts    
+    ## TODO: which steps to do: chose from list: t1, t2, flair,diffusion,pet-mri reg* as mutually exclusive arg group with granular stepstodo
+    ## TODO: config file with filepaths -- as arg, or keep as import like currently?
 
-    ##TODO: function to match MRI to PET dates for registration 
-
-    ##TODO: separate script/function parse /bids folder for complete session lists -- 
+    ## TODO: function to match MRI to PET dates for registration 
+    ## TODO: function for selecting to-do sessions: give directory path and check for completion
+    ## TODO: separate script/function parse /bids folder for complete session lists -- 
         ## similar to /project/wolk_4/naccsc_bids/scripts/dcm2bids_scripts/tabulate_dcm2bids_helper.py 
         ## that can run on ADNI data as well, not wrapped inside of dcm2bids tmp dirs
     
     args = parser.parse_args()
+
+    ## check that csv path is real
+    # csvtoread="/project/wolk_4/naccsc_bids/lists/sm_testlist.csv"
+    # csvtoread="/project/wolk_4/naccsc_bids/lists/rerun_one.csv"
+    csvtoread = args.csv
+    if not os.path.isfile(csvtoread):
+        logging.info(f"filepath {csvtoread} does not exist.")
+        raise SystemExit(1)
+  
+    ## put args.stepstodo in order
+    arg_steps_ordered = [step_ordered for step_ordered in proc_steps.keys() for arg_step in args.stepstodo if step_ordered == arg_step]
 
     ## Set up bids directories & dataset_description.json for each step
     dry_run = args.dry_run
@@ -234,25 +230,14 @@ if __name__ == "__main__":
         for step in args.stepstodo: 
             make_bids_dir(step)
     
-    ## Set whether or not to check for output first (can skip if you know nothing exists)
-    if args.check_for_output == "skip_check":
-        output_check = False
-    else:
+    ## Set whether or not to check for output before submitting processing jobs
+    if args.skip_output_check == True:
         output_check = True
-    # output_check = args.check_for_output
-    # print(f"this is the output_check variable {output_check}")
-    ## TODO: should this be a store_true arg instead? 
-
-    ## put args.stepstodo in order
-    arg_steps_ordered = [step_ordered for step_ordered in proc_steps.keys() for arg_step in args.stepstodo if step_ordered == arg_step]
-
-    csv="/project/wolk_4/naccsc_bids/lists/sm_testlist.csv"
-    # csv="/project/wolk_4/naccsc_bids/lists/rerun_one.csv"
-    ## TODO: faster way to read csv than pandas df? 
-        ## try engine="pyarrow", need to get pyarrow installed first though
-        ## reading the csv is a trivial gain if switching to parallel session processing, not a priority
-    df=pd.read_csv(csv, header=None, names = ['ID','SESSIONNAME'])
-
+    else:
+        output_check = False
+  
+    ## Read csv for sub,ses to process
+    df=pd.read_csv(csvtoread, header=None, names = ['ID','SESSIONNAME'])
     for index,row in df.iterrows():
         jobs_running = {}
         sub = row['ID']
