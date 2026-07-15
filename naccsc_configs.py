@@ -100,7 +100,7 @@ proc_steps = {
     "t1ext_ashs":
     {
         "input_files": [
-            "t1w_preproc", "superres"
+            "t1w_preproc", "superres" ## gopt t1image first, fopt t2image second
         ],
         "directory":"derivatives/ASHST1",
         "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHST1ant", "desc": "lfsegheur"}}

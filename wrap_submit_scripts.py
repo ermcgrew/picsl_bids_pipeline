@@ -48,15 +48,20 @@ def wrap_submit_superres(inputs, output, bsub_options):
 
 
 def wrap_submit_T1ASHS(inputs, output, bsub_options):
-    ##TODO: check length of inputs list or length of list comprehension? 
-    ## Also i don't love the use of bids entity keywords here for distinguishing files, but order not guaranteed(?)
-    ## TODO: use step keywords to access input step 'desc' keyword? 
-    # input_step_keyword = input_image.this_step['input_files']
-    # input_step_keyword['filters']['desc']
-    ## order not guaranteed-- what if superres keyword first and that's what gets searched for in t1 image opt?
+    ## check that both inputs were found 
+    if len(inputs) != 2:
+        logging.info(f"Incorrect number of inputs. Need 2, passed inputs were: {[input_image.file_hard_path for input_image in inputs]}")
+        return
+    
+    ## set up ashs options
+    gopt_stepname = proc_steps[output.this_step]['input_files'][0]
+    gopt_desc_keyword = proc_steps[gopt_stepname]['filters']['desc']
+    gopt_nifti = [input_image.file_hard_path for input_image in inputs if gopt_desc_keyword in input_image.file_hard_path][0] # gopt, t1 image
 
-    t1trim_nifti = [input_image.file_hard_path for input_image in inputs if "preproc" in input_image.file_hard_path][0] # gopt, t1 image
-    superres_nifti = [input_image.file_hard_path for input_image in inputs if "superres" in input_image.file_hard_path][0] #fopt, t2 image
+    fopt_stepname = proc_steps[output.this_step]['input_files'][1]
+    fopt_desc_keyword = proc_steps[fopt_stepname]['filters']['desc']
+    fopt_nifti = [input_image.file_hard_path for input_image in inputs if fopt_desc_keyword in input_image.file_hard_path][0] #fopt, t2 image
+
     output_dir=output.image_dir
     id_opt=output.subject
     ashs_type = "T1ext"
@@ -65,8 +70,8 @@ def wrap_submit_T1ASHS(inputs, output, bsub_options):
     ## pass from here, which is already separated into each type of ashs, can be consistent with any other wrapper script
  
     allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
-                 output_dir, ashs_type, f"-a {ashs_t1ext_atlas}", f"-g {t1trim_nifti}", 
-                 f"-f {superres_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", 
+                 output_dir, ashs_type, f"-a {ashs_t1ext_atlas}", f"-g {gopt_nifti}", 
+                 f"-f {fopt_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", 
                  "-M", f"-C {t1extashs_qc_slice_config}"]
     job_submitted = do_subprocess_run(allargs)
 
