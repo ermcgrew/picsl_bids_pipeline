@@ -12,15 +12,14 @@ def do_subprocess_run(list_of_args):
     try: 
         result = subprocess.run(list_of_args, capture_output=True, encoding="utf-8", timeout=10, check=True)
         result_list = result.stdout.split("\n")
-        print(result_list)
+        logging.info(result_list)
         if "Job <" in result_list[0]:
             return True
-            # jobidnum=result_list[0].split("<")[1].split(">")[0]
     except subprocess.CalledProcessError as exc:
         ## included because of check = True, if non-zero exit code
-        print(f"Process failed with non-zero exit code: {exc.returncode}\n{exc}\nError Message: {exc.stderr}")
+        logging.error(f"Process failed with non-zero exit code: {exc.returncode}\n{exc}\nError Message: {exc.stderr}")
     except subprocess.TimeoutExpired as exc:
-        print(f"Process timed out.\n{exc}")
+        logging.error(f"Process timed out.\n{exc}")
 
 ## TODO: other info for json files?
 def make_output_json_file(json_filepath, input_bids_uri, script_loc, specific_info):
