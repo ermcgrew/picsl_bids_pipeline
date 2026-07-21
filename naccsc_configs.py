@@ -47,7 +47,7 @@ basic_bids_filters = {
     "flair":{
         "datatype":"anat",
         "suffix":"FLAIR",
-        "acquisition":"SagFLAIR"
+        "acquisition":"accSag"
     }  
 }
 
@@ -60,27 +60,32 @@ basic_bids_filters = {
 ## Users can edit the filters to select different files to run through each step
 ## (e.g. If you wanted to run superres step on original un-trimmed T1w scan, remove "desc: preproc" from superres['input_filters'])
 
-#     "xANTs": 
-#     {
-#         "input_step":"T1w_preproc", "output_dir_name":""
-#     },
-#     "longANTs": 
-#     {
-#         "input_step":"xANTs", "output_dir_name":""
-#     },
-#     "parcANTs": 
-#     {
-#         "input_step":"longANTs", "output_dir_name":""
-#     },
-#     "t1icv": 
-#     {
-#         "input_step":"T1w_preproc", "output_dir_name":"ASHSICV"
-#     },
-
-
-
 ## this is files, actually, not steps
 proc_steps = {
+    "t1":
+    {
+        "input_files": [
+            None
+        ],
+        "directory":"",
+        "filters": {**basic_bids_filters['t1w']}
+    },
+    "t2":
+    {
+        "input_files": [
+            None
+        ],
+        "directory":"",
+        "filters": {**basic_bids_filters['t2w']}
+    },
+    "flair":
+    {
+        "input_files": [
+            None
+        ],
+        "directory":"",
+        "filters": {**basic_bids_filters['flair']}
+    },
     "t1w_preproc":
     {
         "input_files": [
@@ -88,6 +93,36 @@ proc_steps = {
         ],
         "directory":"derivatives/T1wPreprocessing_061",
         "filters": {**basic_bids_filters['t1w'], **{"desc": "preproc"}}
+    },
+    "inf_cereb_mask":
+    {
+        "input_files": [
+            "@@"
+        ],
+        "directory":"derivatives/@@",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+    },
+    "ants_stats":{
+        "input_files": [
+            "@@"
+        ],
+        "directory":"derivatives/@@",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "ants_stats"}}
+    },
+    "pmtau":{
+        "input_files": [
+            "@@"
+        ],
+        "directory":"derivatives/@@",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+    },
+     "t1icv": 
+    {
+        "input_files": [
+            "t1w_preproc"
+        ],
+        "directory":"derivatives/ASHSICV",
+        "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHSICV", "desc": "lfsegcorrnogray"}}
     },
     "superres":
     {
@@ -111,15 +146,85 @@ proc_steps = {
             "t1ext_ashs"
         ],
         "directory":"derivatives/CRASHS",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "superres"}}
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
     }, 
+    "t1ashs_stats":{
+        "input_files": [
+            "crashs"
+        ],
+        "directory":"derivatives/t1ashs_stats",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "t1ASHS_stats"}}
+    },
     "t2ashs":
     {
         "input_files": [
-            "t1w_preproc"
+            "t1w_preproc", "t2" ## gopt t1image first, fopt t2image second
         ],
         "directory":"derivatives/ASHST2",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "superres"}}
+        "filters": {**basic_bids_filters['t2w'], **{"atlas":"ASHST2", "desc": "lfsegcorrnogray"}}
     }, 
-
+    "prc_cleanup":
+    {
+        "input_files": [
+            "t2ashs"
+        ],
+        "directory":"derivatives/prc_cleanup",
+        "filters": {**basic_bids_filters['t2w'], **{"atlas":"ASHST2", "desc": "prccleanup"}}
+    },
+    "t2ashs_stats":{
+        "input_files": [
+            "prc_cleanup"
+        ],
+        "directory":"derivatives/t2ashs_stats",
+        "filters": {**basic_bids_filters['t2w'], **{"desc": "t2ashs_stats"}}
+    },
+    "flair_skull_strip":{
+        "input_files": [
+            "flair"
+        ],
+        "directory":"derivatives/flair_skull_stripped",
+        "filters": {**basic_bids_filters['flair'], **{"desc": "skullstrip"}}
+    },
+    "wmh_seg":{
+        "input_files": [
+            "flair_skull_strip"
+        ],
+        "directory":"derivatives/flair_wmh_seg",
+        "filters": {**basic_bids_filters['flair'], **{"seg": "wmh"}}
+    },
+     "wmh_stats":{
+        "input_files": [
+            "wmh_seg"
+        ],
+        "directory":"derivatives/wmh_stats",
+        "filters": {**basic_bids_filters['flair'], **{"desc": "flair_stats"}}
+    },     
+    "t1_pet_reg":{
+        "input_files": [
+            "@@"
+        ],
+        "directory":"derivatives/@@",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+    },        
+    "t1_pet_suvr":{
+        "input_files": [
+            "@@"
+        ],
+        "directory":"derivatives/@@",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+    },        
+    "pet_reg_qc":{
+        "input_files": [
+            "@@"
+        ],
+        "directory":"derivatives/@@",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+    },
+    "pet_reg_stats":{
+        "input_files": [
+            "@@"
+        ],
+        "directory":"derivatives/@@",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+    },
 }

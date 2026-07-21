@@ -32,6 +32,25 @@ def make_output_json_file(json_filepath, input_bids_uri, script_loc, specific_in
     return
 
 
+def wrap_submit_t1icv(inputs, output, bsub_options):
+    ## only 1 input file, used twice in call
+    output_dir=output.image_dir
+    id_opt=output.subject
+    ashs_type = "ICV"
+    allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
+                 output_dir, ashs_type, f"-a {icv_atlas}", f"-g {inputs[0].file_hard_path}", 
+                 f"-f {inputs[0].file_hard_path}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", "-M"]
+    job_submitted = do_subprocess_run(allargs)
+    more_info = {
+        "Atlas": icv_atlas
+    }
+    make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], ashs_root, more_info)   
+    if job_submitted:
+        return output.job_name
+    else:
+        return
+
+
 def wrap_submit_superres(inputs, output, bsub_options):
     script_filepath=os.path.join(os.path.dirname(__file__),"superres_just_bash_parts.sh")    
     allargs = ['bsub'] + bsub_options + ["bash", script_filepath, inputs[0].file_hard_path, output.file_hard_path]
@@ -87,7 +106,50 @@ def wrap_submit_T1ASHS(inputs, output, bsub_options):
         return
 
 
-def wrap_submit_T2_ASHS():
-    print("this is the t2 ashs function in test.py")
+def wrap_submit_T2ASHS(inputs, output, bsub_options):
+    ## check that both inputs were found 
+    if len(inputs) != 2:
+        logging.info(f"Incorrect number of inputs. Need 2, passed inputs were: {[input_image.file_hard_path for input_image in inputs]}")
+        return
+    
+    ## set up ashs options
+    gopt_stepname = proc_steps[output.this_step]['input_files'][0]
+    gopt_desc_keyword = proc_steps[gopt_stepname]['filters']['desc']
+    gopt_nifti = [input_image.file_hard_path for input_image in inputs if gopt_desc_keyword in input_image.file_hard_path][0] # gopt, t1 image
+    fopt_nifti = [input_image.file_hard_path for input_image in inputs if "T2w" in input_image.file_hard_path][0] #fopt, t2 image    
+    output_dir=output.image_dir
+    id_opt=output.subject
+    ashs_type = "T2"
 
-    return
+    allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
+                 output_dir, ashs_type, f"-a {ashs_t2_atlas}", f"-g {gopt_nifti}", 
+                 f"-f {fopt_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", "-M"]
+    job_submitted = do_subprocess_run(allargs)
+    more_info = {
+        "Atlas": ashs_t2_atlas
+    }
+    make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], ashs_root, more_info)
+    if job_submitted:
+        return output.job_name
+    else:
+        return
+    
+
+
+
+
+### basic structure of all functions:
+# def wrap_submit_t1icv(inputs, output, bsub_options):
+#     allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
+#                  output_dir, ashs_type, f"-a {ashs_t1ext_atlas}", f"-g {gopt_nifti}", 
+#                  f"-f {fopt_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", 
+#                  "-M", f"-C {t1extashs_qc_slice_config}"]
+#     job_submitted = do_subprocess_run(allargs)
+#     more_info = {
+#         "Atlas": ashs_t1ext_atlas
+#     }
+#     make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], ashs_root, more_info)
+#     if job_submitted:
+#         return output.job_name
+#     else:
+#         return

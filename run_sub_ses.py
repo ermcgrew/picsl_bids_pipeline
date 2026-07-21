@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 from naccsc_configs import *
-from wrap_submit_scripts import wrap_submit_superres, wrap_submit_T1ASHS
+from wrap_submit_scripts import wrap_submit_superres, wrap_submit_T1ASHS, wrap_submit_t1icv, wrap_submit_T2ASHS
 
 # pass a filepath for an image
 class bids_image():
@@ -25,12 +25,12 @@ class bids_image():
         else:
             self.job_name = f"{self.subject}_{self.session}_{self.this_step}"
 
-    def make_session_dirs(self):
-        try:
-            os.makedirs(self.image_dir)
-        except FileExistsError as e:
-            logger.debug(f"Directory {self.image_dir} already exists.")
-        return 
+    # def make_session_dirs(self):
+    #     try:
+    #         os.makedirs(self.image_dir)
+    #     except FileExistsError as e:
+    #         logger.debug(f"Directory {self.image_dir} already exists.")
+    #     return 
 
     ## compare deriv_dir_name to proc_steps[x]['directory'] - x is matching step name 
     def _match_file_to_step(self):
@@ -51,8 +51,8 @@ def make_bids_dir(step):
         os.makedirs(f"{dir_to_make}/code/logs/")
         if not os.path.exists(f"{dir_to_make}/dataset_description.json"):
             make_dataset_descript_json(dir_to_make,step)
-    else:
-        logger.debug("directory already exists")
+    # else:
+    #     logger.debug("directory already exists")
     return 
 
 
@@ -62,12 +62,26 @@ def make_dataset_descript_json(dirpath,step):
     return
 
 
+def make_session_dir(filepath):
+    try:
+        os.makedirs(filepath)
+    except FileExistsError as e:
+        pass
+        # logger.debug(f"Directory {filepath} already exists.")
+    return 
+
+
 ## use pybids library to get filepaths for existing bids files and create bids_image objects
 ## to access derivative files, pass the derivative directory and validate = False
 ## will return an empty list if no files found
+## only use regex=True with current T1 filters, if used with T2 filters, get both 400um and 400umxND files
 def get_images(data_dir_filepath, filters, validate_bids=False):
+    if filters['suffix'] == "T1w":
+        regex_setting = True
+    else:
+        regex_setting = False
     layout = bids.BIDSLayout(data_dir_filepath, validate = validate_bids)
-    allimages = layout.get(return_type = "filename", extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = True)
+    allimages = layout.get(return_type = "filename", extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = regex_setting)
     bidsimage_objects = []
     for image in allimages:
         bidsimage_objects.append(bids_image(image))
@@ -77,7 +91,7 @@ def get_images(data_dir_filepath, filters, validate_bids=False):
 ## use pybids library to get bids file names files that don't yet exist, then create bids_image objects
 ## outputdir must be the exact directory containing the file, e.g. bids/derivatives/pipeline1/sub-01/ses-01/anat
 def build_bids_filepath(outputdir, this_step_filters_output):
-    pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
+    pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_atlas-{atlas}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
     layout = bids.BIDSLayout(outputdir, validate = False)
     output_file = bids_image(layout.build_path(this_step_filters_output, pattern, validate=False))
     return output_file
@@ -161,7 +175,9 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
 
         ## set up output directory path and output filters
         outputdir=os.path.join(bids_dir_filepath,proc_steps[steptodo]['directory'])
-   
+        ## have to make session directory exist otherwise bids.Layout in build_bids_filepath errors out
+        make_session_dir(os.path.join(outputdir,inputs[0].sub_ses_datatype_dirs)) 
+
         ### Adjust filters for output file: parse_bids_entities(input) to get acq- and possibly run- values
         output_filters = {**proc_steps[steptodo]['filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
         input_filters = parse_file_entities(inputs[0].file_hard_path)
@@ -180,8 +196,6 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
         
         ## get filepath for output file 
         output_file = build_bids_filepath(os.path.join(outputdir,inputs[0].sub_ses_datatype_dirs), output_filters)
-        if not dry_run:
-            output_file.make_session_dirs() 
 
         ## set up bsub options -- now separating bsub flags from their args in list
         submit_options = ["-o", output_file.log_file, "-J", output_file.job_name, "-w", f"ended(control_{sub}_{ses}*)"]
@@ -197,11 +211,15 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                 submit_options[-1] = submit_options[-1] + f" && ended({jobids_touse[i]})"
 
         ## call step-specific wrap script to set up any other args & submit job to cluster 
-        if steptodo == "superres":
+        if steptodo == "t1icv":
+            this_sess_jobs.append(wrap_submit_t1icv(inputs, output_file, submit_options))
+        elif steptodo == "superres":
             this_sess_jobs.append(wrap_submit_superres(inputs, output_file, submit_options))
         elif steptodo == "t1ext_ashs":
             this_sess_jobs.append(wrap_submit_T1ASHS(inputs, output_file, submit_options))
-    
+        elif steptodo == "t2ashs":
+            this_sess_jobs.append(wrap_submit_T2ASHS(inputs, output_file, submit_options))
+
     return this_sess_jobs
 
 
