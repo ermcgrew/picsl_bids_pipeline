@@ -12,11 +12,11 @@ currentdatetime=$( date '+%Y%m%d_%H%M')
 
 ## if step == t1wpreproc, ants, longants,parcants, 
 ## send csv and bids dir loc to harmonized submit scripts
-## no tracking on the jobs? 
+## no tracking on the jobs? or parse the array_key tsv?
 
-# stepstodo="t1icv"
+stepstodo="t1icv"
 # stepstodo="t2ashs"
-stepstodo="flair_skull_strip"
+# stepstodo="flair_skull_strip"
 
 cat $csvtoread | while read line ; do 
     sub=$( echo $line | cut -f 1 -d , )

@@ -48,7 +48,11 @@ basic_bids_filters = {
         "datatype":"anat",
         "suffix":"FLAIR",
         "acquisition":"accSag"
-    }  
+    },
+    "pet":{
+        "datatype":"pet",
+        "suffix":"pet"
+    }    
 }
 
 
@@ -86,37 +90,60 @@ proc_steps = {
         "directory":"",
         "filters": {**basic_bids_filters['flair']}
     },
-    "t1w_preproc":
+    "pet":
     {
         "input_files": [
             None
         ],
+        "directory":"",
+        "filters": {**basic_bids_filters['pet']}
+    },
+    "t1w_preproc":
+    {
+        "input_files": [
+            "t1"
+        ],
         "directory":"derivatives/T1wPreprocessing_061",
         "filters": {**basic_bids_filters['t1w'], **{"desc": "preproc"}}
+    },
+    "crossANTs":{
+        "input_files": [
+            "t1w_preproc"
+        ],
+        "directory":"derivatives/antsnetct_062",
+        "filters": {"datatype":"anat", "suffix":"thickness", "seg": "antsnetct", "desc":"cortical"} 
+    },
+    "longANTs":{
+        "input_files": [
+            "crossANTs"
+        ],
+        "directory":"derivatives/antsnetct_longitudinal_062",
+        "filters": {"datatype":"anat", "suffix":"thickness", "seg": "antsnetct", "desc":"cortical"}
+    },
+    "parcANTs":{
+        "input_files": [
+            "longANTs"
+        ],
+        "directory":"derivatives/antsnetct_longitudinal_062",
+        "filters": {"datatype":"anat", "suffix":"dseg", "seg": "brainCOLORSubcorticalMasked"} 
+        ## need subcortical for inf-cereb_mask, can sed/SubcortialMasked/CorticalPropagated for stats step file
     },
     "inf_cereb_mask":
     {
         "input_files": [
-            "@@"
+            "parcANTs"
         ],
-        "directory":"derivatives/@@",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+        "directory":"derivatives/infcerebmask",
+        "filters": {"datatype":"anat", "suffix":"dseg", "seg": "infcereb"}
     },
     "ants_stats":{
         "input_files": [
-            "@@"
+            "parcANTs"
         ],
-        "directory":"derivatives/@@",
+        "directory":"derivatives/ants_stats",
         "filters": {**basic_bids_filters['t1w'], **{"desc": "ants_stats"}}
     },
-    "pmtau":{
-        "input_files": [
-            "@@"
-        ],
-        "directory":"derivatives/@@",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
-    },
-     "t1icv": 
+    "t1icv": 
     {
         "input_files": [
             "t1w_preproc"
@@ -154,6 +181,14 @@ proc_steps = {
         ],
         "directory":"derivatives/t1ashs_stats",
         "filters": {**basic_bids_filters['t1w'], **{"desc": "t1ASHS_stats"}}
+    },
+    "pmtau":{
+        "input_files": [
+            "crossANTs",
+            "t1ext_ashs"
+        ],
+        "directory":"derivatives/pmtau",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "pmtau"}}
     },
     "t2ashs":
     {
@@ -201,30 +236,35 @@ proc_steps = {
     },     
     "t1_pet_reg":{
         "input_files": [
-            "@@"
+            "pet",
+            "t1w_preproc"
         ],
-        "directory":"derivatives/@@",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+        "directory":"derivatives/pet_mri_reg",
+        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}}
     },        
     "t1_pet_suvr":{
         "input_files": [
-            "@@"
+            "t1_pet_reg",
+            "parcANTs",
+            "inf_cereb_mask"
         ],
-        "directory":"derivatives/@@",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+        "directory":"derivatives/pet_mri_reg_suvr",
+        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}}
     },        
     "pet_reg_qc":{
         "input_files": [
-            "@@"
+            "t1_pet_reg",
+            "t1w_preproc"
         ],
-        "directory":"derivatives/@@",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+        "directory":"derivatives/pet_mri_reg_qc",
+        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}}
     },
     "pet_reg_stats":{
         "input_files": [
-            "@@"
+            "t1_pet_suvr",
+            "parcANTs"
         ],
-        "directory":"derivatives/@@",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+        "directory":"derivatives/pet_mri_reg_stats",
+        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}}
     },
 }

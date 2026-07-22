@@ -38,7 +38,7 @@ def wrap_submit_t1icv(inputs, output, bsub_options):
     id_opt=output.subject
     ashs_type = "ICV"
     allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
-                 output_dir, ashs_type, f"-a {icv_atlas}", f"-g {inputs[0].file_hard_path}", 
+                 output_dir, ashs_type, output.file_hard_path, f"-a {icv_atlas}", f"-g {inputs[0].file_hard_path}", 
                  f"-f {inputs[0].file_hard_path}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", "-M"]
     job_submitted = do_subprocess_run(allargs)
     more_info = {
@@ -88,7 +88,7 @@ def wrap_submit_T1ASHS(inputs, output, bsub_options):
     ## pass from here, which is already separated into each type of ashs, can be consistent with any other wrapper script
  
     allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
-                 output_dir, ashs_type, f"-a {ashs_t1ext_atlas}", f"-g {gopt_nifti}", 
+                 output_dir, ashs_type, output.file_hard_path, f"-a {ashs_t1ext_atlas}", f"-g {gopt_nifti}", 
                  f"-f {fopt_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", 
                  "-M", f"-C {t1extashs_qc_slice_config}"]
     job_submitted = do_subprocess_run(allargs)
@@ -122,7 +122,7 @@ def wrap_submit_T2ASHS(inputs, output, bsub_options):
     ashs_type = "T2"
 
     allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'ashs.sh'), ashs_root,
-                 output_dir, ashs_type, f"-a {ashs_t2_atlas}", f"-g {gopt_nifti}", 
+                 output_dir, ashs_type, output.file_hard_path, f"-a {ashs_t2_atlas}", f"-g {gopt_nifti}", 
                  f"-f {fopt_nifti}", "-T", "-d", f"-I {id_opt}", f"-m {ashs_mopt_mat_file}", "-M"]
     job_submitted = do_subprocess_run(allargs)
     more_info = {

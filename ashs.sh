@@ -9,6 +9,9 @@ shift
 ashs_type=$1
 echo "ASHS type is ${ashs_type}"
 shift
+bids_output_file=$1
+echo "symlink final output to bids named file ${bids_output_file}"
+shift
 options=$@
 
 export ASHS_ROOT=$ashs_root
@@ -64,7 +67,9 @@ if [[ -f "${tmpdir}/final/${id}_left_lfseg_heur.nii.gz" ]] ; then
         ### all files in /final except icv.txt
 
         cp -rv $tmpdir/flirt_t2_to_t1 $tmpdir/qa $tmpdir/tse_native_chunk_* $output_directory
-    
+        
+        ln -sv $output_directory/final/${id}_left_lfseg_heur.nii.gz $bids_output_file
+
     ## for T2 ASHS 
     elif [[ $ashs_type == "T2" ]] ; then
         mkdir -p $output_directory/affine_t1_to_template $output_directory/final
@@ -73,10 +78,13 @@ if [[ -f "${tmpdir}/final/${id}_left_lfseg_heur.nii.gz" ]] ; then
         ### all files in /final except icv.txt
 
         cp -rv $tmpdir/bootstrap $tmpdir/flirt_t2_to_t1 $tmpdir/multiatlas $tmpdir/qa $output_directory
-    
+        
+        ln -sv $output_directory/final/${id}_left_lfseg_corr_nogray.nii.gz $bids_output_file
+
     ## for ICV ASHS 
     elif [[ $ashs_type == "ICV" ]] ; then 
         cp -vr $tmpdir/final $tmpdir/qa $output_directory
+        ln -sv $output_directory/final/${id}_left_lfseg_corr_nogray.nii.gz $bids_output_file
     fi 
 else
     echo "final file not found"
