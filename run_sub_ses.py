@@ -76,7 +76,7 @@ def make_session_dir(filepath):
 ## will return an empty list if no files found
 ## only use regex=True with current T1 filters, if used with T2 filters, get both 400um and 400umxND files
 def get_images(data_dir_filepath, filters, validate_bids=False):
-    if filters['suffix'] == "T1w":
+    if filters['suffix'] == "T1w" or filters['suffix'] == "T2w":
         regex_setting = True
     else:
         regex_setting = False
@@ -111,6 +111,23 @@ def t1w_priority(image_objects=[]):
             return
 
 
+## filter for T2 priority: 400umcrop, then 400umfull, then HighResHippo
+def t2w_priority(image_objects=[]):
+    crop_check = [i for i in image_objects if "crop" in i.file_hard_path]
+    full_check = [i for i in image_objects if "full" in i.file_hard_path]
+    hippo_check = [i for i in image_objects if "ippo" in i.file_hard_path]
+
+    if len(crop_check) > 0:
+        return crop_check
+    elif len(full_check) > 0:
+        return full_check
+    elif len(mprage_check) > 0: 
+        return mprage_check
+    else:
+        logging.debug(f"No appropriate T2 acquisitions found.")
+        return
+
+
 ## set up common bids attributes before calling specific processing script with any particulars 
 def submit_process_jobs(sub,ses,steptodo,wait_jobids):  
     
@@ -122,7 +139,6 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
         this_step_filters_input = {**proc_steps[ift]['filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
         logging.info(f"Using filters: {this_step_filters_input} to find input image")
         found_files = get_images(os.path.join(bids_dir_filepath,proc_steps[ift]['directory']), this_step_filters_input)
-
         ## if no inputs found, but input/parent step in jobs_running list, use build_path to get image name for submission
         if len(found_files) == 0:
             parent_step_name = proc_steps[ift]['directory'].split("/")[-1]
@@ -148,6 +164,13 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                 filtered_files = t1w_priority(found_files) # takes list of objects, returns updated list
                 if filtered_files == None:
                     logging.info(f"no appropriate T1 input file for step {ift}")
+                    return [] 
+                else:
+                    inputfiles = inputfiles + filtered_files
+            elif this_step_filters_input['suffix'] == "T2w":
+                filtered_files = t2w_priority(found_files) # takes list of objects, returns updated list
+                if filtered_files == None:
+                    logging.info(f"no appropriate T2 input file for step {ift}")
                     return [] 
                 else:
                     inputfiles = inputfiles + filtered_files

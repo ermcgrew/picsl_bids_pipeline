@@ -33,16 +33,22 @@ t1extashs_qc_slice_config="/project/wolk/ADNI2018/scripts/adni_processing_pipeli
 
 
 ### filters to use for all steps performed on each type of image
+## no sessions have both 0.8 and vNav T1s, so any acq with 800um in it is preferred
+    ## add * to beginning of 800um to capture ABCD800um version
+## T2 will have acq options as well-- 400umcrop or 400umfull or HighRes Hippo -- 
+    ## no sessions have both T2_2D and HighResHippo
+    ## a few sessions (e.g. 114000x20220503x3TxABC ) have both 1.2 and 1.6 T2s -- 1.2 chosen to process in historic data
+    ## change filter to "400umcrop$|400umfull$|HighResHippo" (still excludes _ND versions)
 basic_bids_filters = {
     "t1w": {
         "datatype":"anat",
         "suffix":"T1w",
-        "acquisition":"800um$|MPRAGE1mm"
+        "acquisition":".*800um$|MPRAGE1mm"
     },
     "t2w":{
         "datatype":"anat",
         "suffix":"T2w",
-        "acquisition":"400um"
+        "acquisition":"400umcrop$|400umfull$|HighResHippo"
     },
     "flair":{
         "datatype":"anat",
