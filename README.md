@@ -8,6 +8,14 @@ Two variables in `naccsc_configs.py` are available to set bids filtering: `basic
 
 Bids filter values can be modified from the default PICSL values currently found in `naccsc_configs.py` for other users/labs as needed. e.g. If you wanted to run superres step on the original un-trimmed T1w image, remove "desc: preproc" from superres['input_filters'].
 
+
+## Run script steps
+1. `flywheel_session_list.py` for list of new sessions to download & process
+2. `/project/wolk_4/naccsc_bids/scripts/fly_PMACS_fly/wrap_export_convert_bids_upload.sh` to download and bidsify sessions
+3. `/project/wolk_4/naccsc_bids/scripts/harmonized_submit_scripts/submit_pmacsT1wPreprocessing.sh` for neck trim of T1
+4. run processing steps in order from `/project/wolk_4/naccsc_bids/scripts/picsl_bids_pipeline/submit_run.sh`
+
+
 ## Processing steps handled in this script, in order
 
 Indentation indicates which steps need to be completed so their output can be used as input. 

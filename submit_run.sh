@@ -31,7 +31,7 @@ else
         ses=$( echo $line | cut -f 2 -d , )
         echo Processing for $sub,$ses
         bsub -q bsc_short -J "control_${sub}_${ses}_${currentdatetime}" \
-            -o "/project/wolk_4/naccsc_bids/scripts/pipeline_logs/${sub}_${ses}_${currentdatetime}.txt" \
+            -o "/project/wolk_4/naccsc_bids/logs/picsl_bids_pipeline/${sub}_${ses}_${currentdatetime}.txt" \
             python /project/wolk_4/naccsc_bids/scripts/picsl_bids_pipeline/run_sub_ses.py \
             -u $sub -e $ses -s ${stepstodo} -k
         break
@@ -43,6 +43,6 @@ fi
 # ses="132132x20250407x3TxABCD2"
 # sub="999999"
 # ses="999999x20251113x3TxFAKE"
-# bsub -q bsc_short -J "control_${sub}_${ses}_${currentdatetime}" -o "/project/wolk_4/naccsc_bids/scripts/pipeline_logs/${sub}_${ses}_${currentdatetime}.txt" 
+# bsub -q bsc_short -J "control_${sub}_${ses}_${currentdatetime}" -o "/project/wolk_4/naccsc_bids/logs/picsl_bids_pipeline/${sub}_${ses}_${currentdatetime}.txt" 
 
 
