@@ -37,6 +37,11 @@ def main():
     df['session.created.dt'] = pd.to_datetime(df['session.created'],format="%Y-%m-%dT%H:%M:%S.%f%z",utc=True)
     df[['ID','DATE','SCANTYPE','STUDY']] = df['session.label'].str.rsplit("x",n=3,expand=True)
 
+
+    # allthrees= df.loc[df['SCANTYPE'] == '3T']
+    # allthrees.info()
+    # allthrees[["subject.label","session.label"]].to_csv(os.path.join(list_dir,f"naccsc_all3T_{currentdatetime}.csv"),index=False,header=True)
+
     new = df.loc[df['session.created.dt'] >= last_updated_date]
     print(f"{len(new)} new sessions since last update on {last_updated_date}")
     print(f"Most recent scan: {new.loc[new['session.created.dt'] == new['session.created.dt'].max(),"session.label"].values[0]}")

@@ -71,6 +71,13 @@ def make_session_dir(filepath):
     return 
 
 
+def tmpdir_just_sub_files():
+    ## bids.BIDSLayout gets a filepath to a tmpdir that is just one subject's data
+
+    return 
+
+
+
 ## use pybids library to get filepaths for existing bids files and create bids_image objects
 ## to access derivative files, pass the derivative directory and validate = False
 ## will return an empty list if no files found
@@ -130,11 +137,10 @@ def t2w_priority(image_objects=[]):
 
 ## set up common bids attributes before calling specific processing script with any particulars 
 def submit_process_jobs(sub,ses,steptodo,wait_jobids):  
-    
-    ## TODO: copy just the files for sub into a tmpdir to speed up bids_layout 
 
     ## Get input file(s)--filtering for two kinds of files: duplicate runs & all necessary input files    
     inputfiles=[]
+    ## with tempfile.Directory as var -- here or inside for loop so it's separate for each input?
     for ift in proc_steps[steptodo]['input_files']:
         this_step_filters_input = {**proc_steps[ift]['filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
         logging.info(f"Using filters: {this_step_filters_input} to find input image")
@@ -218,6 +224,7 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                 continue 
         
         ## get filepath for output file 
+        ## with tempfile.Directory as var
         output_file = build_bids_filepath(os.path.join(outputdir,inputs[0].sub_ses_datatype_dirs), output_filters)
 
         ## set up bsub options -- now separating bsub flags from their args in list
