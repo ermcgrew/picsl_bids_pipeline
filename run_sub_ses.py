@@ -93,6 +93,7 @@ def symlink_subject_dir_to_tmpdir(existing_tmpdir,subject,filepath_to_bids_dir):
     tmp_json_filepath = os.path.join(bids_tmp_dir,"dataset_description.json")
     os.symlink(real_json_filepath,tmp_json_filepath) 
 
+    # os.system(f"tree {bids_tmp_dir}")
     return bids_tmp_dir
 
 
@@ -101,6 +102,8 @@ def symlink_subject_dir_to_tmpdir(existing_tmpdir,subject,filepath_to_bids_dir):
 ## will return an empty list if no files found
 ## only use regex=True with current T1 filters, if used with T2 filters, get both 400um and 400umxND files
 def get_images(data_dir_filepath, filters, validate_bids=False):
+    ## returns a list of bids image objects
+    logging.debug(f'looking for images with filters {filters}')
     if filters['suffix'] == "T1w" or filters['suffix'] == "T2w":
         regex_setting = True
     else:
@@ -122,7 +125,15 @@ def get_images(data_dir_filepath, filters, validate_bids=False):
 ## use pybids library to get bids file names files that don't yet exist, then create bids_image objects
 ## outputdir must be the exact directory containing the file, e.g. bids/derivatives/pipeline1/sub-01/ses-01/anat
 def build_bids_filepath(outputdir, this_step_filters_output):
+    ## TODO: change the name of this function, currently kind of misleading
+    ## get image object from theoretical bids file path
+    ## returns single bids image object
     pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_atlas-{atlas}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
+    ## TODO: implement tmpdir here too
+    ## dir passed to layout needs to be down to the anat/ level, a little different than the get_images version
+    ## separate out bids_image from layout.build_path ? 
+
+  
     layout = bids.BIDSLayout(outputdir, validate = False)
     output_file = bids_image(layout.build_path(this_step_filters_output, pattern, validate=False))
     return output_file
@@ -172,7 +183,7 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
         if len(found_files) == 0:
             parent_step_name = proc_steps[ift]['directory'].split("/")[-1]
             if len([j for j in wait_jobids if parent_step_name in j]) > 0:
-                logging.info(f"Input file for {ift} doesnt' exist yet, input step running as part of this command")
+                logging.info(f"Input file for {ift} doesn't exist yet, input step running as part of this command")
                 ## get acq and desc value in filters correct -- go back to bids folder and filter for acq priority
                 ogfiles = get_images(os.path.join(bids_dir_filepath), {**basic_bids_filters['t1w'], **{"session":f"{ses}", "subject":f"{sub}"}})
                 if this_step_filters_input['suffix'] == "T1w":
@@ -182,8 +193,8 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                     for key in this_step_filters_input.keys():
                         if key not in og_filters.keys():
                             og_filters[key] = this_step_filters_input[key]
-                    input_filepath = build_bids_filepath(os.path.join(bids_dir_filepath,proc_steps[ift]['directory']), og_filters)                
-                    inputfiles.append(input_filepath) 
+                    input_file_from_submitted_step = build_bids_filepath(os.path.join(bids_dir_filepath,proc_steps[ift]['directory']), og_filters)   
+                    inputfiles.append(input_file_from_submitted_step) 
             else:
                 logging.info(f"Missing input file for step {ift} and that step not in current run.")
                 return [] 
@@ -246,7 +257,7 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                 logging.info(f"Output file already exists, not submitting the job.")
                 continue 
         
-        ## get filepath for output file 
+        ## get output file object
         output_file = build_bids_filepath(os.path.join(outputdir,inputs[0].sub_ses_datatype_dirs), output_filters)
 
         ## set up bsub options -- now separating bsub flags from their args in list
@@ -262,15 +273,18 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
             for i in range(0,len(jobids_touse)):
                 submit_options[-1] = submit_options[-1] + f" && ended({jobids_touse[i]})"
 
-        ## call step-specific wrap script to set up any other args & submit job to cluster 
-        if steptodo == "t1icv":
-            this_sess_jobs.append(wrap_submit_t1icv(inputs, output_file, submit_options))
-        elif steptodo == "superres":
-            this_sess_jobs.append(wrap_submit_superres(inputs, output_file, submit_options))
-        elif steptodo == "t1ext_ashs":
-            this_sess_jobs.append(wrap_submit_T1ASHS(inputs, output_file, submit_options))
-        elif steptodo == "t2ashs":
-            this_sess_jobs.append(wrap_submit_T2ASHS(inputs, output_file, submit_options))
+        if not dry_run:
+            ## call step-specific wrap script to set up any other args & submit job to cluster 
+            if steptodo == "t1icv":
+                this_sess_jobs.append(wrap_submit_t1icv(inputs, output_file, submit_options))
+            elif steptodo == "superres":
+                this_sess_jobs.append(wrap_submit_superres(inputs, output_file, submit_options))
+            elif steptodo == "t1ext_ashs":
+                this_sess_jobs.append(wrap_submit_T1ASHS(inputs, output_file, submit_options))
+            elif steptodo == "t2ashs":
+                this_sess_jobs.append(wrap_submit_T2ASHS(inputs, output_file, submit_options))
+        else:
+            this_sess_jobs.append(output_file.job_name)
 
     return this_sess_jobs
 
