@@ -10,6 +10,7 @@ import logging
 import os
 import pandas as pd
 import subprocess 
+import tempfile
 
 current_date = datetime.now().strftime("%Y%m%d")
 current_date_time = datetime.now().strftime("%Y%m%dT%H%M%S")

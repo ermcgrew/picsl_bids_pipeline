@@ -71,11 +71,29 @@ def make_session_dir(filepath):
     return 
 
 
-def tmpdir_just_sub_files():
-    ## bids.BIDSLayout gets a filepath to a tmpdir that is just one subject's data
+def symlink_subject_dir_to_tmpdir(existing_tmpdir,subject,filepath_to_bids_dir):
+    ## makes a symlinked copy of sub-XXX directory and all files it contains beneath under a tmpdir representing the bids/ or pipeline/ level directory
+    
+    ## existing_tmpdir: str, filepath to temporary directory made with tempfile.TemporaryDirectory()
+    ## subject: str, subject label
+    ## filepath_to_bids_dir: str, filepath to containing bids directory (for top-level bids or for pipeline)
 
-    return 
+    ## returns filepath to temp bids directory
 
+    ## make another tmpdir within the existing one to represent the bids/ or pipeline/ level directory
+    bids_tmp_dir = tempfile.mkdtemp(prefix="tmpbids", dir=existing_tmpdir)
+  
+    ## symlink subject directory to tmpdir
+    real_sub_filepath=os.path.join(filepath_to_bids_dir,f"sub-{subject}")
+    tmp_sub_filepath=os.path.join(bids_tmp_dir,f"sub-{subject}")
+    os.symlink(real_sub_filepath,tmp_sub_filepath) 
+
+    ## symlink dataset description file to tmpdir
+    real_json_filepath=os.path.join(filepath_to_bids_dir,"dataset_description.json")
+    tmp_json_filepath = os.path.join(bids_tmp_dir,"dataset_description.json")
+    os.symlink(real_json_filepath,tmp_json_filepath) 
+
+    return bids_tmp_dir
 
 
 ## use pybids library to get filepaths for existing bids files and create bids_image objects
@@ -87,12 +105,18 @@ def get_images(data_dir_filepath, filters, validate_bids=False):
         regex_setting = True
     else:
         regex_setting = False
-    layout = bids.BIDSLayout(data_dir_filepath, validate = validate_bids)
-    allimages = layout.get(return_type = "filename", extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = regex_setting)
-    bidsimage_objects = []
-    for image in allimages:
-        bidsimage_objects.append(bids_image(image))
-    return bidsimage_objects
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        this_bids_tmpdir = symlink_subject_dir_to_tmpdir(tmpdir,filters["subject"],data_dir_filepath)
+        
+        layout = bids.BIDSLayout(this_bids_tmpdir, validate = validate_bids)
+        allimages = layout.get(extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = regex_setting)
+        bidsimage_objects = []
+        for image in allimages:
+            print(image.relpath)
+            bidsimage_objects.append(bids_image(os.path.join(data_dir_filepath,image.relpath)))
+
+        return bidsimage_objects
 
 
 ## use pybids library to get bids file names files that don't yet exist, then create bids_image objects
@@ -140,7 +164,6 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
 
     ## Get input file(s)--filtering for two kinds of files: duplicate runs & all necessary input files    
     inputfiles=[]
-    ## with tempfile.Directory as var -- here or inside for loop so it's separate for each input?
     for ift in proc_steps[steptodo]['input_files']:
         this_step_filters_input = {**proc_steps[ift]['filters'], **{"session":f"{ses}", "subject":f"{sub}"}}
         logging.info(f"Using filters: {this_step_filters_input} to find input image")
@@ -224,7 +247,6 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                 continue 
         
         ## get filepath for output file 
-        ## with tempfile.Directory as var
         output_file = build_bids_filepath(os.path.join(outputdir,inputs[0].sub_ses_datatype_dirs), output_filters)
 
         ## set up bsub options -- now separating bsub flags from their args in list
@@ -310,14 +332,3 @@ if __name__ == "__main__":
         jobidnum = submit_process_jobs(args.sub,args.ses,steptodo,wait_jobids)
         jobs_running[steptodo] = jobidnum
      
-
-    # test = bids_image("/project/wolk_4/naccsc_bids/bids/sub-132132/ses-132132x20250407x3TxABCD2/anat/sub-132132_ses-132132x20250407x3TxABCD2_acq-800um_T1w.nii.gz")
-    # test = bids_image("/project/wolk_4/naccsc_bids/bids/derivatives/superres/sub-131378/ses-131378x20250410x3TxABCD2/anat/sub-131378_ses-131378x20250410x3TxABCD2_acq-800um_desc-superres_T1w.nii.gz")
-    # test = bids_image("/project/wolk_4/naccsc_bids/bids/derivatives/superres/sub-132455/ses-132455x20250414x3TxABCD2/anat/sub-132455_ses-132455x20250414x3TxABCD2_acq-800um_run-01_desc-superres_T1w.nii.gz")
-    # print(test.job_name)
-    # print(test.sub_ses_datatype_dirs)
-    # print(test.file_hard_path)
-    # print(test.json_file)
-    # print(test.this_step)
-    # print(test.containing_bids_dir)
-    # print(test.log_file)
