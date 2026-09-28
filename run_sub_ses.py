@@ -3,8 +3,13 @@
 from naccsc_configs import *
 from wrap_submit_scripts import wrap_submit_superres, wrap_submit_T1ASHS, wrap_submit_t1icv, wrap_submit_T2ASHS
 
-# pass a filepath for an image
+
 class bids_image():
+    '''
+    class for a bids-named file 
+    requires argument: filepath_to_image: str, complete path on system for the bids file
+    '''
+
     def __init__(self,filepath_to_image):
         self.file_hard_path = filepath_to_image
         self.subject = [x.split("-")[1] for x in self.file_hard_path.split("/") if "sub" in x][0]
@@ -25,15 +30,10 @@ class bids_image():
         else:
             self.job_name = f"{self.subject}_{self.session}_{self.this_step}"
 
-    # def make_session_dirs(self):
-    #     try:
-    #         os.makedirs(self.image_dir)
-    #     except FileExistsError as e:
-    #         logger.debug(f"Directory {self.image_dir} already exists.")
-    #     return 
-
-    ## compare deriv_dir_name to proc_steps[x]['directory'] - x is matching step name 
     def _match_file_to_step(self):
+        '''
+        Define which step from naccsc_configs dict the file belongs to
+        '''
         if self.deriv_dir_name == "bids":
             self.this_step = "initial_input"
         else:
@@ -45,40 +45,52 @@ class bids_image():
 
 
 def make_bids_dir(step):
+    '''
+    Makes a pipeline-level bids directory and accompanying dataset_descrip json
+    step: str, name of a step from naccsc_configs dict
+    '''
     dir_to_make = os.path.join(bids_dir_filepath, proc_steps[step]['directory'])
     if not os.path.exists(dir_to_make):
         logger.debug(f"Making bids directory {dir_to_make}")
         os.makedirs(f"{dir_to_make}/code/logs/")
         if not os.path.exists(f"{dir_to_make}/dataset_description.json"):
             make_dataset_descript_json(dir_to_make,step)
-    # else:
-    #     logger.debug("directory already exists")
     return 
 
 
 def make_dataset_descript_json(dirpath,step):
+    '''
+    Create dataset_description json file for a pipeline-level bids directory
+    dirpath: str, filepath of directory containing the json file
+    step: str, name of a step from naccsc_configs dict
+    '''
     print('you have to make a dataset description json for the directory')
     ### TODO: how to write json file info. need script information from processing_steps, date? 
     return
 
 
 def make_session_dir(filepath):
+    '''
+    Create bids subdirectories 
+    filepath: str, complete filepath of directories to create
+    '''
     try:
         os.makedirs(filepath)
     except FileExistsError as e:
         pass
-        # logger.debug(f"Directory {filepath} already exists.")
     return 
 
 
 def symlink_subject_dir_to_tmpdir(existing_tmpdir,subject,filepath_to_bids_dir):
-    ## makes a symlinked copy of sub-XXX directory and all files it contains beneath under a tmpdir representing the bids/ or pipeline/ level directory
+    '''
+    Makes a symlinked copy of sub-XXX directory and all files it contains beneath under a tmpdir representing the bids/ or pipeline/ level directory
     
-    ## existing_tmpdir: str, filepath to temporary directory made with tempfile.TemporaryDirectory()
-    ## subject: str, subject label
-    ## filepath_to_bids_dir: str, filepath to containing bids directory (for top-level bids or for pipeline)
+    existing_tmpdir: str, filepath to temporary directory made with tempfile.TemporaryDirectory()
+    subject: str, subject label
+    filepath_to_bids_dir: str, filepath to containing bids directory (for top-level bids or for pipeline)
 
-    ## returns filepath to temp bids directory
+    Returns a filepath to temp bids directory
+    '''
 
     ## make another tmpdir within the existing one to represent the bids/ or pipeline/ level directory
     bids_tmp_dir = tempfile.mkdtemp(prefix="tmpbids", dir=existing_tmpdir)
@@ -93,17 +105,22 @@ def symlink_subject_dir_to_tmpdir(existing_tmpdir,subject,filepath_to_bids_dir):
     tmp_json_filepath = os.path.join(bids_tmp_dir,"dataset_description.json")
     os.symlink(real_json_filepath,tmp_json_filepath) 
 
-    # os.system(f"tree {bids_tmp_dir}")
     return bids_tmp_dir
 
 
-## use pybids library to get filepaths for existing bids files and create bids_image objects
-## to access derivative files, pass the derivative directory and validate = False
-## will return an empty list if no files found
-## only use regex=True with current T1 filters, if used with T2 filters, get both 400um and 400umxND files
 def get_images(data_dir_filepath, filters, validate_bids=False):
-    ## returns a list of bids image objects
+    '''
+    Uses pybids library to get filepaths for existing bids files and create bids_image objects
+
+    data_dir_filepath: filepath to bids directory, e.g. ...bids or ...bids/derivatives/pipeline1
+    filters: dictionary of bids filters
+    validate_bids: True/False. Must be False if getting derivative images. Defaults to False.
+
+    Returns a list of bids image objects. List will be empty if no files found.
+    '''
+
     logging.debug(f'looking for images with filters {filters}')
+    ## NOTE: only use regex=True with current T1 filters, if used with T2 filters, get both 400um and 400umxND files
     if filters['suffix'] == "T1w" or filters['suffix'] == "T2w":
         regex_setting = True
     else:
@@ -116,31 +133,38 @@ def get_images(data_dir_filepath, filters, validate_bids=False):
         allimages = layout.get(extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = regex_setting)
         bidsimage_objects = []
         for image in allimages:
-            print(image.relpath)
             bidsimage_objects.append(bids_image(os.path.join(data_dir_filepath,image.relpath)))
 
         return bidsimage_objects
 
 
-## use pybids library to get bids file names files that don't yet exist, then create bids_image objects
-## outputdir must be the exact directory containing the file, e.g. bids/derivatives/pipeline1/sub-01/ses-01/anat
 def build_bids_filepath(outputdir, this_step_filters_output):
+    '''
+    Create a valid bids filepath for a file that doesn't exist yet 
+
+    outputdir: directory the bids file will be contained in, e.g. bids/derivatives/pipeline1/sub-01/ses-01/anat
+    this_step_filters_output: dictionary of bids filters to create file name
+
+    Returns a bids_image object of file
+    '''
+    print('in build bids filepath')
+    print(outputdir)
+    print(this_step_filters_output)
     ## TODO: change the name of this function, currently kind of misleading
-    ## get image object from theoretical bids file path
-    ## returns single bids image object
-    pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_atlas-{atlas}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
-    ## TODO: implement tmpdir here too
-    ## dir passed to layout needs to be down to the anat/ level, a little different than the get_images version
-    ## separate out bids_image from layout.build_path ? 
-
-  
-    layout = bids.BIDSLayout(outputdir, validate = False)
-    output_file = bids_image(layout.build_path(this_step_filters_output, pattern, validate=False))
-    return output_file
+    with tempfile.TemporaryDirectory() as tmpdir:
+        layout = bids.BIDSLayout(tmpdir, validate = False)
+        pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_atlas-{atlas}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
+        tmpdir_bids_filepath = layout.build_path(this_step_filters_output, pattern, validate=False)
+        output_file = bids_image(os.path.join(outputdir,os.path.basename(tmpdir_bids_filepath)))
+        return output_file
 
 
-## filter for 800um, MPRAGE priority
 def t1w_priority(image_objects=[]):
+    '''
+    Filter list of bids_image objects for preferred T1 sequence -- 800um, MPRAGE if 800um not available
+    image_objects: list of bids_image objects
+    Returns list with only preferred sequence
+    '''
     eight_check = [i for i in image_objects if "800um" in i.file_hard_path]
     if len(eight_check) > 0:
         return eight_check
@@ -153,8 +177,12 @@ def t1w_priority(image_objects=[]):
             return
 
 
-## filter for T2 priority: 400umcrop, then 400umfull, then HighResHippo
 def t2w_priority(image_objects=[]):
+    '''
+    Filter list of bids_image objects for preferred T1 sequence. 400umcrop, then 400umfull, then HighResHippo 
+    image_objects: list of bids_image objects
+    Returns list with only preferred sequence
+    '''
     crop_check = [i for i in image_objects if "crop" in i.file_hard_path]
     full_check = [i for i in image_objects if "full" in i.file_hard_path]
     hippo_check = [i for i in image_objects if "ippo" in i.file_hard_path]
@@ -170,8 +198,17 @@ def t2w_priority(image_objects=[]):
         return
 
 
-## set up common bids attributes before calling specific processing script with any particulars 
 def submit_process_jobs(sub,ses,steptodo,wait_jobids):  
+    '''
+    set up common bids attributes before calling specific processing script with any particulars 
+    
+    sub: str, valid bids subject label
+    ses: str, valid bids session label 
+    steptodo: str, name of a step from naccsc_configs dict
+    wait_jobids: list of unique job names already submitted for the session being processed
+
+    Returns unique job name for submitted processing step
+    '''
 
     ## Get input file(s)--filtering for two kinds of files: duplicate runs & all necessary input files    
     inputfiles=[]
@@ -193,7 +230,9 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
                     for key in this_step_filters_input.keys():
                         if key not in og_filters.keys():
                             og_filters[key] = this_step_filters_input[key]
-                    input_file_from_submitted_step = build_bids_filepath(os.path.join(bids_dir_filepath,proc_steps[ift]['directory']), og_filters)   
+                    input_file_from_submitted_step = build_bids_filepath(os.path.join(
+                        bids_dir_filepath,proc_steps[ift]['directory'],f"sub-{og_filters['subject']}/ses-{og_filters['session']}/{og_filters['datatype']}"
+                        ), og_filters)                      
                     inputfiles.append(input_file_from_submitted_step) 
             else:
                 logging.info(f"Missing input file for step {ift} and that step not in current run.")
@@ -259,7 +298,7 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
         
         ## get output file object
         output_file = build_bids_filepath(os.path.join(outputdir,inputs[0].sub_ses_datatype_dirs), output_filters)
-
+        
         ## set up bsub options -- now separating bsub flags from their args in list
         submit_options = ["-o", output_file.log_file, "-J", output_file.job_name, "-w", f"ended(control_{sub}_{ses}*)"]
         
