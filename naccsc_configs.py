@@ -33,23 +33,17 @@ ashs_mopt_mat_file = "/project/wolk/ADNI2018/scripts/adni_processing_pipeline/ut
 t1extashs_qc_slice_config="/project/wolk/ADNI2018/scripts/adni_processing_pipeline/utilities/ashs_config.sh"
 
 
-### filters to use for all steps performed on each type of image
-## no sessions have both 0.8 and vNav T1s, so any acq with 800um in it is preferred
-    ## add * to beginning of 800um to capture ABCD800um version
-## T2 will have acq options as well-- 400umcrop or 400umfull or HighRes Hippo -- 
-    ## no sessions have both T2_2D and HighResHippo
-    ## a few sessions (e.g. 114000x20220503x3TxABC ) have both 1.2 and 1.6 T2s -- 1.2 chosen to process in historic data
-    ## change filter to "400umcrop$|400umfull$|HighResHippo" (still excludes _ND versions)
+### filters to select preferred type of acquisition, in descending order of preference 
 basic_bids_filters = {
     "t1w": {
         "datatype":"anat",
         "suffix":"T1w",
-        "acquisition":".*800um$|MPRAGE1mm"
+        "acquisition":".*ABCD800um$|800um$|MPRAGE1mm"
     },
     "t2w":{
         "datatype":"anat",
         "suffix":"T2w",
-        "acquisition":"400umcrop$|400umfull$|HighResHippo"
+        "acquisition":"400umcrop$|400um$|HighResHippo"
     },
     "flair":{
         "datatype":"anat",
@@ -79,7 +73,7 @@ proc_steps = {
             None
         ],
         "directory":"",
-        "filters": {**basic_bids_filters['t1w']}
+        "filters": {**basic_bids_filters['t1w'], "extension": "nii.gz"}
     },
     "t2":
     {
@@ -87,7 +81,7 @@ proc_steps = {
             None
         ],
         "directory":"",
-        "filters": {**basic_bids_filters['t2w']}
+        "filters": {**basic_bids_filters['t2w'], "extension": "nii.gz"}
     },
     "flair":
     {
@@ -95,7 +89,7 @@ proc_steps = {
             None
         ],
         "directory":"",
-        "filters": {**basic_bids_filters['flair']}
+        "filters": {**basic_bids_filters['flair'], "extension": "nii.gz"}
     },
     "pet":
     {
@@ -103,36 +97,36 @@ proc_steps = {
             None
         ],
         "directory":"",
-        "filters": {**basic_bids_filters['pet']}
+        "filters": {**basic_bids_filters['pet'], "extension": "nii.gz"}
     },
     "t1w_preproc":
     {
         "input_files": [
             "t1"
         ],
-        "directory":"derivatives/T1wPreprocessing_061",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "preproc"}}
+        "directory":"derivatives/T1wPreprocessing_070",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "preproc"}, "extension": "nii.gz"}
     },
     "crossANTs":{
         "input_files": [
             "t1w_preproc"
         ],
-        "directory":"derivatives/antsnetct_062",
-        "filters": {"datatype":"anat", "suffix":"thickness", "seg": "antsnetct", "desc":"cortical"} 
+        "directory":"derivatives/antsnetct_062_p01",
+        "filters": {"datatype":"anat", "suffix":"thickness", "seg": "antsnetct", "desc":"cortical", "extension": "nii.gz"} 
     },
     "longANTs":{
         "input_files": [
             "crossANTs"
         ],
         "directory":"derivatives/antsnetct_longitudinal_062",
-        "filters": {"datatype":"anat", "suffix":"thickness", "seg": "antsnetct", "desc":"cortical"}
+        "filters": {"datatype":"anat", "suffix":"thickness", "seg": "antsnetct", "desc":"cortical", "extension": "nii.gz"}
     },
     "parcANTs":{
         "input_files": [
             "longANTs"
         ],
         "directory":"derivatives/antsnetct_longitudinal_062",
-        "filters": {"datatype":"anat", "suffix":"dseg", "seg": "brainCOLORSubcorticalMasked"} 
+        "filters": {"datatype":"anat", "suffix":"dseg", "seg": "brainCOLORSubcorticalMasked", "extension": "nii.gz"} 
         ## need subcortical for inf-cereb_mask, can sed/SubcortialMasked/CorticalPropagated for stats step file
     },
     "inf_cereb_mask":
@@ -141,7 +135,7 @@ proc_steps = {
             "parcANTs"
         ],
         "directory":"derivatives/infcerebmask",
-        "filters": {"datatype":"anat", "suffix":"dseg", "seg": "infcereb"}
+        "filters": {"datatype":"anat", "suffix":"dseg", "seg": "infcereb", "extension": "nii.gz"}
     },
     "ants_stats":{
         "input_files": [
@@ -156,7 +150,7 @@ proc_steps = {
             "t1w_preproc"
         ],
         "directory":"derivatives/ASHSICV",
-        "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHSICV", "desc": "lfsegcorrnogray"}}
+        "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHSICV", "desc": "lfsegcorrnogray"}, "extension": "nii.gz"}
     },
     "superres":
     {
@@ -164,7 +158,7 @@ proc_steps = {
             "t1w_preproc"
         ],
         "directory":"derivatives/superres",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "superres"}}
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "superres"}, "extension": "nii.gz"}
     }, 
     "t1ext_ashs":
     {
@@ -172,19 +166,19 @@ proc_steps = {
             "t1w_preproc", "superres" ## gopt t1image first, fopt t2image second
         ],
         "directory":"derivatives/ASHST1",
-        "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHST1ant", "desc": "lfsegheur"}}
+        "filters": {**basic_bids_filters['t1w'], **{"atlas": "ASHST1ant", "desc": "lfsegheur", "extension": "nii.gz"}}
     },
     "crashs":
     {
         "input_files": [
             "t1ext_ashs"
         ],
-        "directory":"derivatives/CRASHS",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "@@"}}
+        "directory":"derivatives/ASHST1",
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "CRASHSthickROIsummary", "extension": "csv"}}
     }, 
     "t1ashs_stats":{
         "input_files": [
-            "crashs"
+            "t1icv", "t1ext_ashs", "crashs"
         ],
         "directory":"derivatives/t1ashs_stats",
         "filters": {**basic_bids_filters['t1w'], **{"desc": "t1ASHS_stats"}}
@@ -195,7 +189,7 @@ proc_steps = {
             "t1ext_ashs"
         ],
         "directory":"derivatives/pmtau",
-        "filters": {**basic_bids_filters['t1w'], **{"desc": "pmtau"}}
+        "filters": {**basic_bids_filters['t1w'], **{"desc": "pmtau"}, "extension": "nii.gz"}
     },
     "t2ashs":
     {
@@ -203,7 +197,7 @@ proc_steps = {
             "t1w_preproc", "t2" ## gopt t1image first, fopt t2image second
         ],
         "directory":"derivatives/ASHST2",
-        "filters": {**basic_bids_filters['t2w'], **{"atlas":"ASHST2", "desc": "lfsegcorrnogray"}}
+        "filters": {**basic_bids_filters['t2w'], **{"atlas":"ASHST2", "desc": "lfsegcorrnogray"}, "extension": "nii.gz"}
     }, 
     "prc_cleanup":
     {
@@ -211,7 +205,7 @@ proc_steps = {
             "t2ashs"
         ],
         "directory":"derivatives/prc_cleanup",
-        "filters": {**basic_bids_filters['t2w'], **{"atlas":"ASHST2", "desc": "prccleanup"}}
+        "filters": {**basic_bids_filters['t2w'], **{"atlas":"ASHST2", "desc": "prccleanup"}, "extension": "nii.gz"}
     },
     "t2ashs_stats":{
         "input_files": [
@@ -232,7 +226,7 @@ proc_steps = {
             "flair_skull_strip"
         ],
         "directory":"derivatives/flair_wmh_seg",
-        "filters": {**basic_bids_filters['flair'], **{"seg": "wmh"}}
+        "filters": {**basic_bids_filters['flair'], **{"seg": "wmh"}, "extension": "nii.gz"}
     },
      "wmh_stats":{
         "input_files": [
@@ -247,7 +241,7 @@ proc_steps = {
             "t1w_preproc"
         ],
         "directory":"derivatives/pet_mri_reg",
-        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}}
+        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}, "extension": "nii.gz"}
     },        
     "t1_pet_suvr":{
         "input_files": [
@@ -256,7 +250,7 @@ proc_steps = {
             "inf_cereb_mask"
         ],
         "directory":"derivatives/pet_mri_reg_suvr",
-        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}}
+        "filters": {**basic_bids_filters['pet'], **{"desc": "@@"}, "extension": "nii.gz"}
     },        
     "pet_reg_qc":{
         "input_files": [
