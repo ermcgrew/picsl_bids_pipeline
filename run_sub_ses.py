@@ -1,8 +1,7 @@
 #!/usr/bin/bash
 
 from naccsc_configs import *
-from wrap_submit_scripts import wrap_submit_superres, wrap_submit_T1ASHS, wrap_submit_t1icv, wrap_submit_T2ASHS
-
+import wrap_submit_scripts
 
 class bids_image():
     '''
@@ -130,7 +129,7 @@ def get_images(data_dir_filepath, filters, validate_bids=False):
         this_bids_tmpdir = symlink_subject_dir_to_tmpdir(tmpdir,filters["subject"],data_dir_filepath)
         
         layout = bids.BIDSLayout(this_bids_tmpdir, validate = validate_bids)
-        allimages = layout.get(extension = ["nii.gz", "nii"], **filters, invalid_filters="allow", regex_search = regex_setting)
+        allimages = layout.get(**filters, invalid_filters="allow", regex_search = regex_setting)
         bidsimage_objects = []
         for image in allimages:
             bidsimage_objects.append(bids_image(os.path.join(data_dir_filepath,image.relpath)))
@@ -147,13 +146,14 @@ def build_bids_filepath(outputdir, this_step_filters_output):
 
     Returns a bids_image object of file
     '''
-    print('in build bids filepath')
-    print(outputdir)
-    print(this_step_filters_output)
+    # print('in build bids filepath')
     ## TODO: change the name of this function, currently kind of misleading
+        # get_image_objects_existing_file
+        # get_image_object_potential uncreated theoretical todo tomake 
+        # doing the same thing two different ways ... combine? 
     with tempfile.TemporaryDirectory() as tmpdir:
         layout = bids.BIDSLayout(tmpdir, validate = False)
-        pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_atlas-{atlas}][_echo-{echo}][_desc-{desc}]_{suffix}.nii.gz"
+        pattern = "sub-{subject}[_ses-{session}][_desc-{description}][_acq-{acquisition}][_rec-{reconstruction}][_run-{run}][_atlas-{atlas}][_echo-{echo}][_desc-{desc}]_{suffix}." + this_step_filters_output['extension']
         tmpdir_bids_filepath = layout.build_path(this_step_filters_output, pattern, validate=False)
         output_file = bids_image(os.path.join(outputdir,os.path.basename(tmpdir_bids_filepath)))
         return output_file
@@ -315,13 +315,15 @@ def submit_process_jobs(sub,ses,steptodo,wait_jobids):
         if not dry_run:
             ## call step-specific wrap script to set up any other args & submit job to cluster 
             if steptodo == "t1icv":
-                this_sess_jobs.append(wrap_submit_t1icv(inputs, output_file, submit_options))
+                this_sess_jobs.append(wrap_submit_scripts.wrap_submit_t1icv(inputs, output_file, submit_options))
             elif steptodo == "superres":
-                this_sess_jobs.append(wrap_submit_superres(inputs, output_file, submit_options))
+                this_sess_jobs.append(wrap_submit_scripts.wrap_submit_superres(inputs, output_file, submit_options))
             elif steptodo == "t1ext_ashs":
-                this_sess_jobs.append(wrap_submit_T1ASHS(inputs, output_file, submit_options))
+                this_sess_jobs.append(wrap_submit_scripts.wrap_submit_T1ASHS(inputs, output_file, submit_options))
+            elif steptodo == "crashs":
+                this_sess_jobs.append(wrap_submit_scripts.wrap_submit_crashs(inputs, output_file, submit_options))
             elif steptodo == "t2ashs":
-                this_sess_jobs.append(wrap_submit_T2ASHS(inputs, output_file, submit_options))
+                this_sess_jobs.append(wrap_submit_scripts.wrap_submit_T2ASHS(inputs, output_file, submit_options))
         else:
             this_sess_jobs.append(output_file.job_name)
 
