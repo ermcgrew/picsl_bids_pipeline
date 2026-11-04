@@ -7,7 +7,7 @@ input_file=$1
 final_sr_output_filepath=$2
 
 module load c3d
-SRPATH="/project/wolk_4/naccsc_bids/scripts/adni_processing_pipeline/utilities/build_release"
+SRPATH="/project/wolk/ADNI2018/scripts/adni_processing_pipeline/utilities/build_release"
 
 echo Script versions: 
 echo $SRPATH
