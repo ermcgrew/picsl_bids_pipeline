@@ -47,7 +47,13 @@ def main():
     print(f"Most recent scan: {new.loc[new['session.created.dt'] == new['session.created.dt'].max(),"session.label"].values[0]}")
     print(f"New scans by scan type:")
     print(new['SCANTYPE'].value_counts(dropna=False))
-    new[["subject.label","session.label"]].to_csv(os.path.join(list_dir,f"naccsc_new_sessions_{currentdatetime}.csv"),index=False,header=False)
+    new[["subject.label","session.label"]].to_csv(os.path.join(list_dir,f"naccsc_new_sessions_allmodes_{currentdatetime}.csv"),index=False,header=False)
+
+    newmri=new.loc[new['SCANTYPE'] == "3T"]
+    newmri[["subject.label","session.label"]].to_csv(os.path.join(list_dir,f"naccsc_new_sessions_MRI_{currentdatetime}.csv"),index=False,header=False)
+
+    newpet=new.loc[new['SCANTYPE'] != "3T"]
+    newpet[["subject.label","session.label"]].to_csv(os.path.join(list_dir,f"naccsc_new_sessions_PET_{currentdatetime}.csv"),index=False,header=False)
 
 
 main()
