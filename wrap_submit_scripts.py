@@ -21,6 +21,7 @@ def do_subprocess_run(list_of_args):
     except subprocess.TimeoutExpired as exc:
         logging.error(f"Process timed out.\n{exc}")
 
+
 ## TODO: other info for json files?
 def make_output_json_file(json_filepath, input_bids_uri, script_loc, specific_info):
     ## input_bids_uri is a list of bids-uri-formatted source files
@@ -62,7 +63,7 @@ def wrap_submit_superres(inputs, output, bsub_options):
     if job_submitted:
         return output.job_name
     else:
-        return ## returns [None] to run.py
+        return 
 
 
 def wrap_submit_T1ASHS(inputs, output, bsub_options):
@@ -100,6 +101,20 @@ def wrap_submit_T1ASHS(inputs, output, bsub_options):
     ## output json should always be generated, so there's a record of what files have been tried even if the job fails
     ## each new run generates a new json file, overwriting the old one
     
+    if job_submitted:
+        return output.job_name
+    else:
+        return
+
+
+def wrap_submit_crashs(inputs, output, bsub_options):
+    allargs = ['bsub'] + bsub_options + ["bash", os.path.join(os.path.dirname(__file__),'run_crashs.sh'),
+                 output.subject, output.session, output.containing_bids_dir]
+    job_submitted = do_subprocess_run(allargs)
+    more_info = {}
+    make_output_json_file(output.json_file, [input_image.bids_uri for input_image in inputs], ashs_root, more_info)
+    ##TODO: ashs_root should be crashs_root, which is currently hardcoded in file -- move to config and pass?
+    ## also put conda env in the config file and pass?
     if job_submitted:
         return output.job_name
     else:
