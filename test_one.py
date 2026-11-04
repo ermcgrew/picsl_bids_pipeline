@@ -4,9 +4,9 @@
 
 import os
 
-sub="114000"
-ses="114000x20220503x3TxABC"
-stepstodo="superres t1ext_ashs" #superres 
-
+sub="100905x01"
+ses="100905x01x20260311x3TxCLARiTI"
+# stepstodo="superres t1ext_ashs" #superres 
+stepstodo="crashs"
 os.system(f"python /project/wolk_4/naccsc_bids/scripts/picsl_bids_pipeline/run_sub_ses.py \
-            -u {sub} -e {ses} -s {stepstodo} -k -d")
+            -u {sub} -e {ses} -s {stepstodo} -d") #-k to skip output check

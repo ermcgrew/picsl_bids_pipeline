@@ -8,7 +8,10 @@ conda activate /project/wolk_4/emcgrew/picslbids
 
 # csvtoread="/project/wolk_4/naccsc_bids/lists/sm_testlist.csv"
 # csvtoread="/project/wolk_4/naccsc_bids/lists/rerun_one.csv"
-csvtoread="/project/wolk_4/naccsc_bids/lists/another_list.csv"
+# csvtoread="/project/wolk_4/naccsc_bids/lists/another_list.csv"
+# csvtoread="/project/wolk_4/naccsc_bids/lists/test_justone_bidssession.csv"
+csvtoread="/project/wolk_4/naccsc_bids/lists/20261029_testing.csv"
+
 currentdatetime=$( date '+%Y%m%d_%H%M')
 
 ## if step == t1wpreproc, ants, longants,parcants, 
@@ -18,10 +21,13 @@ currentdatetime=$( date '+%Y%m%d_%H%M')
 
 # stepstodo="t1wpreproc"
 # stepstodo="t1icv"
-stepstodo="t2ashs"
+# stepstodo="t2ashs"
 # stepstodo="flair_skull_strip"
+# stepstodo="superres t1ext_ashs"
+stepstodo="crashs"
 
 ants_config_file="/project/wolk_4/naccsc_bids/scripts/harmonized_submit_scripts/configs/naccsc"
+
 if [[ $stepstodo == "t1wpreproc" ]] ; then 
     bash /project/wolk_4/naccsc_bids/scripts/harmonized_submit_scripts/submit_pmacsT1wPreprocessing.sh $csvtoread session $ants_config_file
 
@@ -33,7 +39,7 @@ else
         bsub -q bsc_short -J "control_${sub}_${ses}_${currentdatetime}" \
             -o "/project/wolk_4/naccsc_bids/logs/picsl_bids_pipeline/${sub}_${ses}_${currentdatetime}.txt" \
             python /project/wolk_4/naccsc_bids/scripts/picsl_bids_pipeline/run_sub_ses.py \
-            -u $sub -e $ses -s ${stepstodo} -k
+            -u $sub -e $ses -s ${stepstodo} #-k # -d
         break
     done
 
